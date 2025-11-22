@@ -1,0 +1,23 @@
+mkdir market-analysis-engine
+cd market-analysis-engine
+
+git init
+
+ git remote add origin https://github.com/jeff-hansen-code/market-analysis-engine.git
+
+git remote -v
+
+git remote -v
+git remote -v
+git remote -v
+see::
+origin  https://github.com/jeff-hansen-code/market-analysis-engine.git (fetch)
+origin  https://github.com/jeff-hansen-code/market-analysis-engine.git (push)
+
+git pull origin main --allow-unrelated-histories
+
+git status
+
+git push
+returns: Everything up-to-date
+
