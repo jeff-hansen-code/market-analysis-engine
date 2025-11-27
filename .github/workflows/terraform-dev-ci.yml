@@ -42,7 +42,7 @@ jobs:
       - name: Select or create workspace
         run: |
           terraform workspace list
-          terraform workspace select "$TF_WORKSPACE" || terraform workspace new "$TF_WORKSPACE"
+          terraform workspace new "$TF_WORKSPACE" 2>/dev/null || echo "Workspace $TF_WORKSPACE already exists"
 
       - name: Terraform validate
         run: terraform validate
