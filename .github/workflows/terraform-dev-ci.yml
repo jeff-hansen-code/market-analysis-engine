@@ -1,0 +1,48 @@
+name: Terraform CI (dev workspace)
+
+on:
+  push:
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform-dev-ci.yml"
+  pull_request:
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform-dev-ci.yml"
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    # We’ll start with dev only; later you can add test/prod
+    strategy:
+      matrix:
+        workspace: [dev]
+
+    env:
+      TF_WORKSPACE: ${{ matrix.workspace }}
+
+    defaults:
+      run:
+        working-directory: infra/terraform
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform fmt
+        run: terraform fmt -check
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Select or create workspace
+        run: |
+          terraform workspace list
+          terraform workspace select "$TF_WORKSPACE" || terraform workspace new "$TF_WORKSPACE"
+
+      - name: Terraform validate
+        run: terraform validate

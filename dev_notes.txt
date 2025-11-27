@@ -21,3 +21,55 @@ git status
 git push
 returns: Everything up-to-date
 
+git checkout -b feature/25-11-22-setup
+git branch
+
+git add dev_notes.txt
+git commit -m "Add notes file"
+git push -u origin feature/25-11-22-setup
+
+make dir structure
+mkdir backend, ml, frontend, infra, docs
+mkdir backend\api, backend\services, backend\models, backend\pipelines
+mkdir ml\notebooks, ml\training, ml\models, ml\service
+mkdir frontend\src, frontend\public
+mkdir infra\terraform, infra\terraform\env-dev, infra\pipelines
+
+
+git status
+git add .
+git commit -m "Add initial project folder structure"
+
+cd backend
+dotnet new webapi -n MarketAnalysis.Api
+mv MarketAnalysis.Api api
+cd backend/api/MarketAnalysis.Api
+dotnet add package Swashbuckle.AspNetCore
+dotnet run
+
+
+Create the Python ML Service
+cd ml\service
+Create a virtual environment
+python -m venv .ve_mae_ml
+Activate:
+.\.ve_mae_ml\Scripts\activate
+pip install fastapi uvicorn
+main.py
+Run the ML service
+uvicorn main:app --reload --port 8000
+then see
+Uvicorn running on http://127.0.0.1:8000
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+Test in browser:
+Health:
+http://localhost:8000/health
+
+extension: Azurite (by Microsoft) install in vs code
+Ctrl+Shift+P, type:
+
+Azurite: Start
+func start
+
+terraform locals, main, providers, variables.
+terraform init, terraform validate
