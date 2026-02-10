@@ -8,7 +8,7 @@
 *.tfstate
 *.tfstate.*
 crash.log
-
+*notes.txt
 
 # User-specific files
 *.rsuser

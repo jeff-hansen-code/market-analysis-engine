@@ -1,0 +1,284 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+parameters:
+  - name: env
+    displayName: Terraform workspace
+    type: string
+    default: dev
+    values:
+      - dev
+      - prod
+
+  - name: runDestroy
+    displayName: RUN DESTROY (manual only)
+    type: boolean
+    default: false
+
+  - name: confirmDestroy
+    displayName: Confirm DESTROY (must be true)
+    type: boolean
+    default: false
+
+variables:
+  # ====== REQUIRED: UPDATE IF NEEDED ======
+  azureServiceConnection: 'Service_Conn_for_Sub1_ARM'
+  keyVaultName: 'basekv'
+
+  # Terraform
+  tfDir: 'infra/terraform'
+  tfVersion: '1.14.4'
+
+  backendResourceGroup: 'BaseRG'
+  backendStorageAccount: 'basetfsacenus'
+  backendContainer: 'market-analysis-engine'
+  backendKey: 'market-analysis-engine.tfstate'
+
+  # ADO Environment name (you said you created it as "Dev")
+  adoEnvironmentName: 'Dev'
+
+  # Function project path (UPDATE THIS if your csproj path differs)
+  functionCsproj: './src/MarketAnalysisEngine.Functions/pipelines/MarketAnalysis.Functions/MarketAnalysisEngine.Functions.csproj'
+
+stages:
+  - stage: Build
+    displayName: Build Function App
+    jobs:
+      - job: Build
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+
+          - task: UseDotNet@2
+            inputs:
+              packageType: 'sdk'
+              version: '8.x'
+
+          # Helpful if csproj path issues: shows you what exists on the agent
+          - script: |
+              echo "Repo root:"
+              ls
+              echo ""
+              echo "Functions folder:"
+              ls -R ./src/MarketAnalysisEngine.Functions | head -n 200
+            displayName: Debug list (helps verify csproj path)
+
+          - script: |
+              dotnet restore
+              dotnet publish "$(functionCsproj)" -c Release -o "$(Build.ArtifactStagingDirectory)/publish"
+            displayName: dotnet publish
+
+          - task: ArchiveFiles@2
+            inputs:
+              rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/publish'
+              includeRootFolder: false
+              archiveType: 'zip'
+              archiveFile: '$(Build.ArtifactStagingDirectory)/functionapp.zip'
+              replaceExistingArchive: true
+            displayName: Zip function output
+
+          - publish: '$(Build.ArtifactStagingDirectory)/functionapp.zip'
+            artifact: functionapp
+
+  - stage: TerraformPlan
+    displayName: Terraform Plan
+    dependsOn: Build
+    jobs:
+      - job: Plan
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+
+          - task: TerraformInstaller@1
+            inputs:
+              terraformVersion: '$(tfVersion)'
+
+          - task: AzureKeyVault@2
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              KeyVaultName: '$(keyVaultName)'
+              SecretsFilter: 'TFSTATE-STORAGE-KEY'
+              RunAsPreJob: true
+
+          - script: |
+              set -e
+              cd "$(tfDir)"
+
+              terraform -version
+
+              terraform init \
+                -backend-config="resource_group_name=$(backendResourceGroup)" \
+                -backend-config="storage_account_name=$(backendStorageAccount)" \
+                -backend-config="container_name=$(backendContainer)" \
+                -backend-config="key=$(backendKey)"
+
+              terraform workspace select ${{ parameters.env }} || terraform workspace new ${{ parameters.env }}
+
+              terraform fmt -check
+              terraform validate
+
+              terraform plan -out=tfplan
+            displayName: terraform plan
+            env:
+              ARM_ACCESS_KEY: $(TFSTATE-STORAGE-KEY)
+
+          - publish: '$(tfDir)/tfplan'
+            artifact: tfplan
+
+  - stage: TerraformApply
+    displayName: Terraform Apply (Approved)
+    dependsOn: TerraformPlan
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: Apply
+        displayName: Apply Terraform
+        environment: '$(adoEnvironmentName)'
+        pool:
+          vmImage: 'ubuntu-latest'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - task: TerraformInstaller@1
+                  inputs:
+                    terraformVersion: '$(tfVersion)'
+
+                - task: AzureKeyVault@2
+                  inputs:
+                    azureSubscription: '$(azureServiceConnection)'
+                    KeyVaultName: '$(keyVaultName)'
+                    SecretsFilter: 'TFSTATE-STORAGE-KEY'
+                    RunAsPreJob: true
+
+                - download: current
+                  artifact: tfplan
+
+                - script: |
+                    set -e
+                    cd "$(tfDir)"
+
+                    terraform init \
+                      -backend-config="resource_group_name=$(backendResourceGroup)" \
+                      -backend-config="storage_account_name=$(backendStorageAccount)" \
+                      -backend-config="container_name=$(backendContainer)" \
+                      -backend-config="key=$(backendKey)"
+
+                    terraform workspace select ${{ parameters.env }}
+
+                    terraform apply -auto-approve "$(Pipeline.Workspace)/tfplan/tfplan"
+                  displayName: terraform apply
+                  env:
+                    ARM_ACCESS_KEY: $(TFSTATE-STORAGE-KEY)
+
+  - stage: DeployFunction
+    displayName: Deploy Function App
+    dependsOn: TerraformApply
+    condition: succeeded()
+    jobs:
+      - job: Deploy
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+
+          - download: current
+            artifact: functionapp
+
+          # Read Function App name from Terraform outputs (reliable, no cross-stage output variable drama)
+          - task: TerraformInstaller@1
+            inputs:
+              terraformVersion: '$(tfVersion)'
+
+          - task: AzureKeyVault@2
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              KeyVaultName: '$(keyVaultName)'
+              SecretsFilter: 'TFSTATE-STORAGE-KEY'
+              RunAsPreJob: true
+
+          - bash: |
+              set -e
+              cd "$(tfDir)"
+
+              terraform init \
+                -backend-config="resource_group_name=$(backendResourceGroup)" \
+                -backend-config="storage_account_name=$(backendStorageAccount)" \
+                -backend-config="container_name=$(backendContainer)" \
+                -backend-config="key=$(backendKey)"
+
+              terraform workspace select ${{ parameters.env }}
+
+              APP_NAME="$(terraform output -raw function_app_name)"
+              echo "Function App name from TF output: $APP_NAME"
+              echo "##vso[task.setvariable variable=FUNCTION_APP_NAME]$APP_NAME"
+            displayName: Get function app name from TF output
+            env:
+              ARM_ACCESS_KEY: $(TFSTATE-STORAGE-KEY)
+
+          # NOTE:
+          # If your Function App uses Managed Identity + Key Vault references in app settings,
+          # you do NOT need to fetch FMP/Supabase secrets here.
+          # Deploy just ships the code package.
+
+          - task: AzureFunctionApp@2
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              appType: functionAppLinux # change to "functionApp" if Windows
+              appName: '$(FUNCTION_APP_NAME)'
+              package: '$(Pipeline.Workspace)/functionapp/functionapp.zip'
+            displayName: Deploy zip to Function App
+
+  - stage: Destroy
+    displayName: Terraform Destroy (MANUAL ONLY)
+    dependsOn: []
+    condition: and(succeeded(), eq(${{ parameters.runDestroy }}, true), eq(${{ parameters.confirmDestroy }}, true))
+    jobs:
+      - deployment: Destroy
+        displayName: Destroy Terraform
+        environment: '$(adoEnvironmentName)'
+        pool:
+          vmImage: 'ubuntu-latest'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - task: TerraformInstaller@1
+                  inputs:
+                    terraformVersion: '$(tfVersion)'
+
+                - task: AzureKeyVault@2
+                  inputs:
+                    azureSubscription: '$(azureServiceConnection)'
+                    KeyVaultName: '$(keyVaultName)'
+                    SecretsFilter: 'TFSTATE-STORAGE-KEY'
+                    RunAsPreJob: true
+
+                - script: |
+                    set -e
+                    cd "$(tfDir)"
+
+                    terraform init \
+                      -backend-config="resource_group_name=$(backendResourceGroup)" \
+                      -backend-config="storage_account_name=$(backendStorageAccount)" \
+                      -backend-config="container_name=$(backendContainer)" \
+                      -backend-config="key=$(backendKey)"
+
+                    terraform workspace select ${{ parameters.env }}
+
+                    terraform destroy -auto-approve
+                  displayName: terraform destroy
+                  env:
+                    ARM_ACCESS_KEY: $(TFSTATE-STORAGE-KEY)
