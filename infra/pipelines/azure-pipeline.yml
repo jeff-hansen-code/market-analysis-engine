@@ -41,8 +41,8 @@ variables:
   backendContainer: 'market-analysis-engine'
   backendKey: 'market-analysis-engine.tfstate'
 
-  # ADO Environment name (you said you created it as "Dev")
-  adoEnvironmentName: 'Dev'
+  # ADO Environment name (you said you created it as "dev")
+  adoEnvironmentName: 'dev'
 
   # Function project path (UPDATE THIS if your csproj path differs)
   functionCsproj: './src/MarketAnalysisEngine.Functions/pipelines/MarketAnalysis.Functions/MarketAnalysisEngine.Functions.csproj'
