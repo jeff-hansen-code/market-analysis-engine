@@ -7,7 +7,7 @@ variable "location" {
 variable "supabase_api_url" {
   description = "Supabase API URL (e.g. https://your-project.supabase.co)"
   type        = string
-  default     = "https://barrkyhggfsjrcllvoeo.supabase.co" 
+  default     = "https://barrkyhggfsjrcllvoeo.supabase.co"
 }
 
 variable "name_suffix" {
