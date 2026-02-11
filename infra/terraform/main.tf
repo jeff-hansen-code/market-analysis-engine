@@ -1,5 +1,5 @@
 # Dev resource group
-resource "azurerm_resource_group" "dev_rg" {
+resource "azurerm_resource_group" "rg" {
   name     = "mae-${local.workspace}-rg"
   location = local.location
 }
@@ -8,8 +8,8 @@ resource "azurerm_resource_group" "dev_rg" {
 # NOTE: storage account name must be globally unique, all lowercase, 3–24 chars.
 resource "azurerm_storage_account" "funcsa" {
   name                     = "mae${local.workspace}funcsa${local.name_suffix}"
-  resource_group_name      = azurerm_resource_group.dev_rg.name
-  location                 = azurerm_resource_group.dev_rg.location
+  resource_group_name      = azurerm_resource_group.rg.name
+  location                 = azurerm_resource_group.rg.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
 }
