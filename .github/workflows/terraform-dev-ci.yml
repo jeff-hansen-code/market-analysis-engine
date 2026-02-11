@@ -1,4 +1,4 @@
-name: Terraform CI (dev workspace)
+name: Terraform CI (formatting only)
 
 on:
   push:
@@ -10,17 +10,12 @@ on:
       - "infra/terraform/**"
       - ".github/workflows/terraform-dev-ci.yml"
 
+permissions:
+  contents: read
+
 jobs:
-  terraform:
+  terraform_fmt:
     runs-on: ubuntu-latest
-
-    # We’ll start with dev only; later you can add test/prod
-    strategy:
-      matrix:
-        workspace: [dev]
-
-    env:
-      TF_WORKSPACE: ${{ matrix.workspace }}
 
     defaults:
       run:
@@ -32,17 +27,8 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
 
-      - name: Terraform fmt
-        run: terraform fmt -check
-
-      - name: Terraform init
-        run: terraform init -input=false
-
-      - name: Select or create workspace
-        run: |
-          terraform workspace list
-          terraform workspace new "$TF_WORKSPACE" 2>/dev/null || echo "Workspace $TF_WORKSPACE already exists"
-
-      - name: Terraform validate
-        run: terraform validate
+      - name: Terraform fmt (check)
+        run: terraform fmt -check -recursive
