@@ -3,6 +3,21 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
+# Terraform local files
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*notes.txt
+
+local.settings.json
+.env
+terraform.tfvars
+*.tfstate
+*.tfstate.*
+
+
+
 # User-specific files
 *.rsuser
 *.suo

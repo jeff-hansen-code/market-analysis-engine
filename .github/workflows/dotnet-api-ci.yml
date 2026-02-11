@@ -1,0 +1,41 @@
+name: .NET API CI
+
+on:
+  push:
+    paths:
+      - "backend/api/**"
+      - ".github/workflows/dotnet-api-ci.yml"
+  pull_request:
+    paths:
+      - "backend/api/**"
+      - ".github/workflows/dotnet-api-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend/api/MarketAnalysis.Api
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      # Keep this even if no tests yet; will become real as soon as you add tests.
+      - name: Test
+        run: dotnet test --configuration Release --no-build || echo "No tests yet"

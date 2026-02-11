@@ -1,0 +1,611 @@
+mkdir market-analysis-engine
+cd market-analysis-engine
+git init
+ git remote add origin https://github.com/jeff-hansen-code/market-analysis-engine.git
+git remote -v
+git remote -v
+git remote -v
+git remote -v
+see::
+origin  https://github.com/jeff-hansen-code/market-analysis-engine.git (fetch)
+origin  https://github.com/jeff-hansen-code/market-analysis-engine.git (push)
+git pull origin main --allow-unrelated-histories
+git status
+git push
+returns: Everything up-to-date
+git checkout -b feature/25-11-22-setup
+git branch
+git add dev_notes.txt
+git commit -m "Add notes file"
+git push -u origin feature/25-11-22-setup
+make dir structure
+mkdir backend, ml, frontend, infra, docs
+mkdir backend\api, backend\services, backend\models, backend\pipelines
+mkdir ml\notebooks, ml\training, ml\models, ml\service
+mkdir frontend\src, frontend\public
+mkdir infra\terraform, infra\terraform\env-dev, infra\pipelines
+git status
+git add .
+git commit -m "Add initial project folder structure"
+cd backend
+dotnet new webapi -n MarketAnalysis.Api
+mv MarketAnalysis.Api api
+cd backend/api/MarketAnalysis.Api
+dotnet add package Swashbuckle.AspNetCore
+dotnet run
+Create the Python ML Service
+cd ml\service
+Create a virtual environment
+python -m venv .ve_mae_ml
+Activate:
+.\.ve_mae_ml\Scripts\activate
+pip install fastapi uvicorn
+main.py
+Run the ML service
+uvicorn main:app --reload --port 8000
+then see
+Uvicorn running on http://127.0.0.1:8000
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+Test in browser:
+Health:
+http://localhost:8000/health
+extension: Azurite (by Microsoft) install in vs code
+Ctrl+Shift+P, type:
+Azurite: Start
+func start
+terraform locals, main, providers, variables.
+terraform init, terraform validate
+terraform workspace new dev
+terraform workspace new test
+terraform workspace new prod
+terraform workspace select X
+git status          # just to see what's changed
+git add .
+git commit -m "Wire Terraform CI with workspaces"
+git push
+update gitignore
+# Terraform local files
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+Now reset your branch to match GitHub’s last good version, but keep changes in your working tree:
+git fetch
+git reset --soft origin/feature/25-11-22-setup
+
+
+DATABASE
+supabase.com
+AllBusiness6000@gmail.com
+Ttwddk987&*
+dbpass:  xwDkljmaedbn1$%
+Password=wDkljmaedbn1$%;Ssl 
+postgresql://postgres:[YOUR_PASSWORD]@db.barrkyhggfsjrcllvoeo.supabase.co:5432/postgres
+host: db.barrkyhggfsjrcllvoeo.supabase.co
+port:
+5432
+database:
+postgres
+user:
+postgres
+
+
+
+
+https://site.financialmodelingprep.com/login
+AllBusiness6000@gmail.com
+Wwtddk756*#
+api key: b5t2L6bk68dVzcaaW2QOZX0ugVB7wa5k
+
+
+-- 1) Raw price / quote data
+create table if not exists stocks_raw (
+  id           bigint generated always as identity primary key,
+  symbol       text                      not null,
+  provider     text                      not null, -- e.g. 'yahoo', 'alpha_vantage'
+  as_of        timestamptz               not null, -- quote time
+  price        numeric,                             -- last price
+  currency     text,                                -- e.g. 'USD'
+  raw_payload  jsonb,                              -- full JSON from API
+  created_at   timestamptz default now() not null
+);
+-- 2) Raw fundamentals / financial statements
+create table if not exists fundamentals_raw (
+  id             bigint generated always as identity primary key,
+  symbol         text                      not null,
+  provider       text                      not null, -- e.g. 'financial_modeling_prep'
+  statement_type text                      not null, -- e.g. 'balance_sheet', 'income', 'cash_flow'
+  period         text,                                -- e.g. 'annual', 'quarterly'
+  as_of          date,                                -- period end date
+  raw_payload    jsonb                   not null,    -- full JSON fundamentals
+  created_at     timestamptz default now() not null
+);
+-- 3) Model predictions / signals
+create table if not exists predictions (
+  id                 bigint generated always as identity primary key,
+  symbol             text                      not null,
+  model_name         text                      not null, -- e.g. 'baseline_v1', 'xgboost_v2'
+  horizon_years      int                       not null, -- e.g. 1, 3, 5, 10
+  expected_return    numeric,                             -- e.g. 0.12 = 12%
+  confidence         numeric,                             -- 0–1
+  as_of              timestamptz               not null,  -- when prediction was generated
+  input_snapshot_id  bigint,                               -- optional link to some snapshot later
+  extra_meta         jsonb,                               -- metadata about features, params, etc.
+  created_at         timestamptz default now() not null
+);
+Project API
+Your API is secured behind an API gateway which requires an API Key for every request.
+You can use the parameters below to use Supabase client libraries.
+Project URL
+https://barrkyhggfsjrcllvoeo.supabase.co
+Copy
+A RESTful endpoint for querying and managing your database.
+API Key
+anon
+public
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhcnJreWhnZ2ZzanJjbGx2b2VvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQyNjM3NDgsImV4cCI6MjA3OTgzOTc0OH0.PnF-2NlfiLLajJ_RxguSaTduJJR2uZrk3QtHGjIBcpQ
+Copy
+This key is safe to use in a browser if you have enabled Row Level Security (RLS) for your tables and configured policies. You may also use the service key which can be found here to bypass RLS.
+Javascript
+Dart
+import { createClient } from '@supabase/supabase-js'
+const supabaseUrl = 'https://barrkyhggfsjrcllvoeo.supabase.co'
+const supabaseKey = process.env.SUPABASE_KEY
+const supabase = createClient(supabaseUrl, supabaseKey)
+Direct connection
+Ideal for applications with persistent and long-lived connections, such as those running on virtual machines or long-standing containers.
+postgresql://postgres:[YOUR_PASSWORD]@db.barrkyhggfsjrcllvoeo.supabase.co:5432/postgres
+View parameters
+host:
+db.barrkyhggfsjrcllvoeo.supabase.co
+port:
+5432
+database:
+postgres
+user:
+postgres
+
+
+financialmodelingprep.com
+AllBusiness6000@gmail.com
+Wwtddk756*#
+api key: b5t2L6bk68dVzcaaW2QOZX0ugVB7wa5k
+
+
+https://financialmodelingprep.com/api/v3/quote-short/AAPL?apikey=b5t2L6bk68dVzcaaW2QOZX0ugVB7wa5k
+https://site.financialmodelingprep.com/developer/docs
+https://financialmodelingprep.com/stable/search-symbol?query=AAPL&apikey=b5t2L6bk68dVzcaaW2QOZX0ugVB7wa5k
+https://financialmodelingprep.com/api/v3/quote-short/AAPL?apikey=b5t2L6bk68dVzcaaW2QOZX0ugVB7wa5k
+[{"name": "Apple Inc.", "open": 277.26, "price": 278.36, "change": 0.81, "dayLow": 275.9865, "symbol": "AAPL", "volume": 19033072, "dayHigh": 279, "yearLow": 169.21, "exchange": "NASDAQ", "yearHigh": 280.38, "marketCap": 4113145621080, "timestamp": 1764356386, "priceAvg50": 261.82, "priceAvg200": 226.982, "previousClose": 277.55, "changePercentage": 0.29184}]
+def cus_sort_list(lst):
+    return sorted(lst)
+	
+I’ll break it into (1) what we’ve got, (2) how to store it, and (3) where the actual edge might come from.
+1. What’s on the menu from FMP (relevant stuff)
+From your HTML + docs, the big “alpha candidate” areas are: 
+Financial Modeling Prep
+Financial Modeling Prep
+Market leaders / flow
+Biggest Stock Gainers / Losers 
+Financial Modeling Prep
+Financial Modeling Prep
+Top Traded / Most Active (highest volume) 
+Financial Modeling Prep
+Technical indicators
+SMA/EMA/RSI/MACD/etc via technical-indicators endpoints 
+Financial Modeling Prep
+Fundamentals
+Financial statements, DCF, PE by sector/industry, etc. 
+Financial Modeling Prep
+Insider & big money
+Latest Insider Trading, Search Insider Trades, Insider Trade Statistics 
+Financial Modeling Prep
+Financial Modeling Prep
+13F institutional ownership, “Senate” / congressional trades, ESG, etc. 
+Financial Modeling Prep
+Macro / sector context
+Sector & industry performance snapshots and historical sector/industry PE 
+Financial Modeling Prep
+That’s exactly the stuff quants pay for: flow + fundamentals + informed flow + technicals + macro context.
+2. How to store it in your Supabase / Azure Functions world
+You already have:
+stocks_raw (quotes / batch-quote)
+fundamentals_raw
+predictions
+We add a few focused tables, driven by timer-triggered Azure Functions so we don’t blow rate limits or your wallet.
+2.1 Daily market leaders snapshot
+Table: market_leaders_daily
+	
+CREATE TABLE public.market_leaders_daily (
+  id          bigint generated always as identity primary key,
+  as_of_date  date not null,
+  source      text not null,  -- 'gainers' | 'losers' | 'most_active'
+  rank        integer not null,
+  symbol      text not null,
+  price       numeric,
+  change_pct  numeric,
+  volume      bigint,
+  raw_payload jsonb,
+  created_at  timestamptz not null default now()
+);
+Timer function once per day (e.g., after US close):
+Call:
+/stable/biggest-gainers
+/stable/biggest-losers
+/stable/most-active (or equivalent) 
+Financial Modeling Prep
+Financial Modeling Prep
+Financial Modeling Prep
+Insert top N (say 100 each) with source + rank.
+This alone lets you see who keeps popping up in leaders/actives lists over weeks.
+2.2 “Core Watchlist” builder
+Once you have market_leaders_daily for a few weeks:
+Create a materialized view or table like core_watchlist:
+CREATE MATERIALIZED VIEW public.core_watchlist AS
+SELECT
+  symbol,
+  COUNT(*) AS appearances_30d
+FROM market_leaders_daily
+WHERE as_of_date >= current_date - 30
+GROUP BY symbol
+HAVING COUNT(*) >= 3;  -- tweak threshold
+These are your high-attention, liquid names.
+Then:
+Your quote timer Azure Function runs more often only for core_watchlist symbols.
+Your fundamentals crawler only pulls fundamentals for the core_watchlist universe (spreading calls over days like you described).
+2.3 Fundamentals on a drip (20 calls/day idea)
+You already have fundamentals_raw. Add a helper table or view:
+CREATE TABLE public.fundamentals_crawl_queue (
+  symbol text primary key,
+  last_fundamental_as_of date,
+  last_checked_at timestamptz
+);
+Nightly function:
+Take up to 20 symbols from:
+core_watchlist LEFT JOIN fundamentals_crawl_queue
+Prefer ones where last_fundamental_as_of is oldest or NULL.
+Call the relevant FMP fundamentals endpoints for each symbol. 
+Financial Modeling Prep
+Insert new rows into fundamentals_raw, update queue.
+Result: over time you build deep fundamentals for the stuff the market actually cares about, without spiking usage.
+2.4 Insider & “smart money” flow
+Table: insider_trades_raw
+CREATE TABLE public.insider_trades_raw (
+  id              bigint generated always as identity primary key,
+  symbol          text not null,
+  filing_date     date,
+  transaction_date date,
+  transaction_type text,      -- 'P'/'S'/etc.
+  shares          numeric,
+  price           numeric,
+  insider_name    text,
+  insider_role    text,
+  cik_company     text,
+  cik_reporter    text,
+  raw_payload     jsonb,
+  created_at      timestamptz not null default now()
+);
+Daily timer function:
+Hit stable/insider-trading/latest?page=0&limit=100 and/or stable/insider-trading/search?page=0&limit=100 
+Financial Modeling Prep
+Insert new trades (de-dupe by some combination: symbol + transaction_date + insider + shares + price).
+Then build a view of net insider sentiment per stock:
+CREATE VIEW v_insider_sentiment_30d AS
+SELECT
+  symbol,
+  SUM(CASE WHEN transaction_type LIKE 'P%' THEN shares*price ELSE 0 END) AS dollars_bought_30d,
+  SUM(CASE WHEN transaction_type LIKE 'S%' THEN shares*price ELSE 0 END) AS dollars_sold_30d,
+  COUNT(*) AS trade_count_30d
+FROM insider_trades_raw
+WHERE transaction_date >= current_date - 30
+GROUP BY symbol;
+Now every symbol has a “how bullish are insiders lately?” number.
+You can later extend this with:
+13F ownership changes
+Senate trades
+ESG flags 
+Financial Modeling Prep
+2.5 Technical indicator snapshots
+For core_watchlist symbols, once per day (or per hour), call things like:
+technical-indicators/rsi
+technical-indicators/sma, ema, etc. 
+Financial Modeling Prep
+Table: technical_snapshot_daily
+CREATE TABLE public.technical_snapshot_daily (
+  id          bigint generated always as identity primary key,
+  symbol      text not null,
+  as_of_date  date not null,
+  rsi_14      numeric,
+  sma_20      numeric,
+  sma_50      numeric,
+  sma_200     numeric,
+  macd        numeric,
+  raw_payload jsonb,
+  created_at  timestamptz not null default now(),
+  UNIQUE(symbol, as_of_date)
+);
+3. Where could the actual edge come from?
+No magic “free money,” but we can build signals and backtest them. Think of it like this:
+Each (symbol, date) row could have features:
+Flow & attention
+Times in biggest_gainers/losers/actives in last 5–30 days
+Relative volume vs its own 60-day average
+Price action / technicals
+1/5/20-day returns vs SPY
+Distance from 52-week high/low
+RSI oversold/overbought
+Trend (SMA 20 > SMA 50 > SMA 200, etc.)
+Fundamentals
+Valuation (PE vs sector/industry PE) 
+Financial Modeling Prep
+Growth metrics (revenue/EPS YoY)
+Profitability margins
+Insider & big money
+Net insider $ buy – $ sell over 30/90 days 
+Financial Modeling Prep
+Recent 13F “new positions” or “increases”
+Senate purchase flags
+Events
+Recent earnings surprise, upgrades/downgrades, dividend changes 
+Financial Modeling Prep
+Then:
+3.1 Labeling for ML / backtests
+For each (symbol, date), define labels like:
+y_5d: forward 5-day return
+y_20d: forward 20-day return
+y_alpha_20d: return over next 20 days minus SPY return
+Now you can ask:
+“Given these features, which stocks tended to beat the market over the next 20 days?”
+That’s a standard ranking / classification problem:
+Simple first: sort by hand-built score (e.g., momentum + insider buy – valuation penalty).
+Next: train models (XGBoost, RandomForest, etc.) on all these features to rank names by predicted y_alpha_20d.
+Your existing predictions table is perfect to store:
+expected_return
+confidence
+model_name (e.g. "ml_v1_momentum_insiders")
+3.2 Concrete strategy sketches
+These are examples, not promises — but they’re the kind of edges people hunt:
+Repeated-appearance momentum with guard rails
+Universe: symbols in core_watchlist (appear often in gainers/actives).
+Go long ones with:
+Positive 1–20 day trend,
+High volume relative to normal,
+No huge insider selling,
+Reasonable valuation vs sector.
+Hold 5–20 days, equal weight, rebalance.
+Insider + value swing
+Universe: stocks that were recent losers (bottom of the market), but:
+Have strong net insider buying last 30–90 days,
+Valuation is cheap vs sector (PE / EV-EBITDA),
+Some technical sign of bottoming (RSI rising from oversold).
+Mean-reversion / rebound play with stricter risk controls.
+Earnings + flow
+Names with:
+Recent positive earnings surprise,
+Show up in biggest gainers + most active around earnings,
+Insider buying in last quarter.
+Ride post-earnings drift for 1–4 weeks.
+Every one of these can be implemented and then backtested with your pipeline. If they don’t survive after slippage/costs, toss them. The point is your engine lets you try many ideas fast.
+4. How I’d build this in phases (so you don’t drown)
+No questions, just a suggested order:
+Phase 1 – Market leaders & watchlist
+Implement:
+market_leaders_daily ingestion (gainers/losers/actives).
+core_watchlist view.
+Wire to your existing Azure Function + stocks_raw.
+Phase 2 – Fundamentals drip + technical snapshots
+Add fundamentals_crawl_queue + nightly fundamentals pulls.
+Add technical_snapshot_daily for core_watchlist.
+Phase 3 – Insider flows
+Implement insider_trades_raw + v_insider_sentiment_30d.
+Optionally 13F + Senate later.
+Phase 4 – Analytics & ML
+Build a big denormalized view:
+v_research_daily joining:
+stocks_raw (prices),
+market_leaders_daily,
+technical_snapshot_daily,
+fundamentals_raw,
+v_insider_sentiment_30d,
+sector/industry PE/performance.
+Export to Python/R, run backtests + ML.
+Store model outputs back into predictions.
+If you want, next step I can:
+Draft the actual Supabase table/view DDL for market_leaders_daily + core_watchlist, and
+Sketch the C# Azure Function for calling FMP’s gainers/losers/actives endpoints and writing into market_leaders_daily.
+That would make Phase 1 a real, runnable module you can drop into your repo.
+-----------------------___________________________________________
+******************************************************************''
+ok first question is, what is a materialized view vs normal sql view vs normal SUPABASE view... short answer on that.. next i rethink the 2.3 part  on fundamentals, thinking better to get all fundalmentals faster, otherwise how would we know when/if somethjing is a good buy sooner then later... so new plan,.. we make func to pull the top traded, using that list, pull fundalmentals, that is inital fill data stage, after, we puill top traded every day adding new prior not existing entries into db table, usiung the new added to pull fundalmentals, and on top of that, pull fundalmentals for remaining possiable stocks...  that I am not sure of right this second, like how to get the entire all stocks whatever list.. we figure that out later... so keep the update going for new added stocks fundalmentals on a drip here phase stream flow... and when to do a large refresh is another thing i am not sure right this second when would be best to do that, like when do these get updated usually?... any questions?
+A. Initial stage: “Top traded → fundamentals flood”
+Timer function (e.g., daily after close):
+Get Top Traded list (say top 200–500).
+Insert those into a top_traded_daily or market_leaders_daily table.
+For each symbol in that list:
+If not in fundamentals_raw (or older than N days/quarters):
+Call FMP fundamentals endpoint.
+Upsert into fundamentals_raw.
+This rapidly builds fundamentals for the active stuff.
+
+B. Ongoing drip:
+Daily
+Keep doing Top Traded → new symbols → fetch fundamentals.
+Background backfill
+Maintain a table like symbol_directory (all tickers).
+Each day process, say, 50–100 symbols from symbol_directory that have no fundamentals yet.
+Over weeks, you get coverage for almost everything without overload.
+The “how do we get all stocks list” part = use FMP’s directory/listing endpoints later and fill symbol_directory.
+
+C. Large refresh (quarterly-ish)
+Later, we can:
+Add a field like last_fundamental_as_of to track statement date.
+When:
+current_date - last_fundamental_as_of > 90 days, or
+new fiscal quarter detected,
+Queue that symbol for refresh.
+No need to solve that part right this second — your current plan (grab fundamentals aggressively for anything that hits Top Traded, then drip the rest) already gets you 80% of the value.
+
+Design the exact Supabase tables for:
+
+market_leaders_daily / top_traded_daily / symbol_directory
+
+Next step (when you’re ready): we’ll design how this table feeds your core watchlist and the fundamentals fetch pipeline.
+
+make c# func app
+test input into DB from postman for top traded - success -
+https://barrkyhggfsjrcllvoeo.supabase.co/rest/v1/top_traded_raw
+apikey: <SUPABASE_SERVICE_ROLE_KEY>
+Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>
+Content-Type: application/json
+Prefer: return=representation
+
+Next step (as planned)
+Build the second Azure Function:
+Top Traded → Fundamentals ingest
+Flow:
+Query Supabase for recent top_traded_raw symbols
+Find symbols missing in fundamentals_raw (or stale)
+Call FMP fundamentals endpoint for those symbols
+Insert into fundamentals_raw
+Tell me which fundamentals endpoint you want to start with (pick one):
+Income Statement
+Balance Sheet
+Cash Flow
+Key Metrics / Ratios
+If you don’t care, I’ll default to Key Metrics first (best “buy/sell signal” utility).
+
+
+
+Here’s the minimum checklist so timers run in Azure the same way they do locally:
+1. - Azure Function App Settings (Configuration)
+Add these exact keys:
+FMP_API_KEY
+SUPABASE_API_URL (format https://<project>.supabase.co)
+SUPABASE_SERVICE_ROLE_KEY (Supabase “Secret” key)
+AzureWebJobsStorage (Azure will set this if created normally)
+2. - Tables ready in Supabase
+top_traded_raw exists (with exchange column)
+fundamentals_raw exists (your new fundamentals function depends on it)
+(Recommended) unique constraint on fundamentals so re-runs don’t duplicate:
+UNIQUE(symbol, provider, statement_type, period, as_of)
+3. - Timer triggers are UTC
+Your cron schedules run in UTC in Azure. (So 21:05 UTC is not “4:05pm Chicago” except during part of the year.)
+Deploy both functions
+You said you now have:
+Analysis.cs
+FmpGetPrice.cs
+IngestTopTraded.cs 
+IngestTopTraded
+plus the new fundamentals-from-top-traded file you added
+
+
+ok plan was changed to  be lets do this, 1 grab top traded every hour or 2 hours  (not run over free rate limit). in trading hours,... write all this data to top_traded_raw table,.. 2.). compare newly added top traded sysmbles to fundamentals_raw, to see if there are new symbols in top traded that we do not ahve fundalments on. if new symbols, do the look up/fetch for fundalments and then write for each new symbol into fundalments_raw. 
+
+
+d.cs(18,14): error CS0246: The type or namespace name 'TimerTrigger' could not be found (are you missing a using directive or an assembly reference?)
+    C:\Users\jeffh\Documents\Projects\market-analysis-engine\backend\pipelines\MarketAnalysis.Functions\Functions\Analysis.cs(25,14): error CS0246: The type or namespace name 'HttpTriggerAttribute' could not be found (are you missing a using directive or an assembly reference?)
+    C:\Users\jeffh\Documents\Projects\market-analysis-engine\backend\pipelines\MarketAnalysis.Functions\Functions\Analysis.cs(25,14): error CS0246: The type or namespace name 'HttpTrigger' could not be found (are you missing a using directive or an assembly reference?)
+    C:\Users\jeffh\Documents\Projects\market-analysis-engine\backend\pipelines\MarketAnalysis.Functions\Functions\Analysis.cs(25,26): error CS0103: The name 'AuthorizationLevel' does not exist in the current context
+	
+------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------___________-------------------
+
+
+Option 1 (recommended right now): Stay on FMP Free, but make your pipeline “allowlist-aware”
+
+Goal: Stop wasting calls + errors, and keep your DB consistent.
+
+What to change
+
+Create a table (or config file) with allowed symbols:
+
+fmp_free_symbols(symbol text primary key)
+
+Change your symbol-pick query to only choose allowed symbols:
+
+SELECT fr.symbol
+FROM fundamentals_raw fr
+JOIN fmp_free_symbols allow ON allow.symbol = fr.symbol
+WHERE fr.last_price_checked_at IS NULL
+   OR fr.last_price_checked_at < now() - interval '30 minutes'
+ORDER BY fr.last_price_checked_at NULLS FIRST
+LIMIT 900;
+
+
+In IngestFundamentalsFromTopTraded, only request fundamentals for symbols in the allowlist:
+
+When TopTraded inserts 50 symbols, filter them to allowed before calling income-statement.
+
+Everything else gets flagged as blocked so you don’t retry every run.
+
+Add a column:
+
+fundamentals_raw.fmp_blocked boolean default false
+and on PaymentRequired set it true.
+
+This gives you a clean “green” pipeline without upgrading.
+
+Option 2: Keep FMP for prices, but get “income numbers” from the SEC (free, legit)
+
+If your goal is income statement numbers, the SEC EDGAR XBRL APIs are the most defensible “free” source.
+
+SEC provides extracted XBRL data via data.sec.gov APIs (companyfacts, companyconcept). 
+SEC
++1
+
+You can map ticker → CIK using the SEC “company tickers” dataset. 
+SEC
+
+How it would work
+
+Get ticker → CIK mapping (store once in your DB).
+
+For each ticker, call companyfacts and pull tags like:
+
+Revenues
+
+NetIncomeLoss
+
+OperatingIncomeLoss
+
+etc.
+
+This avoids scraping and avoids paywalls entirely.
+
+Option 3: Switch fundamentals provider (still API-based, not scraping)
+
+Example: Alpha Vantage has fundamentals endpoints (income statement, balance sheet, cash flow). 
+Alpha Vantage
++1
+
+(There are others too—Finnhub, Tiingo, Polygon, etc.—but you’d pick based on pricing/limits.)
+
+About “google and scrape with an agent AI”
+
+I wouldn’t build your core pipeline on scraping:
+
+It’s brittle (HTML changes = breaks)
+
+Often violates site ToS
+
+Triggers bot protections/captchas
+
+Hard to keep reliable at scale
+
+If you want “agentic” automation, the SEC API route gives you that without the legal/fragility mess.
+
+What I’d do if this were my project1
+
+Implement FMP allowlist filtering today so your timers run clean.
+
+Add SEC EDGAR fundamentals ingestion next so you can expand beyond the FMP free symbols while staying free.
+
+Only then consider paying for a provider if you want more markets + less plumbing.
+
+If you want, paste your current IngestFundamentalsFromTopTraded symbol loop (or the SQL it uses), and I’ll show the exact minimal diff to:
+
+filter to fmp_free_symbols
+
+set fmp_blocked = true on PaymentRequired
+
+stop retrying blocked symbols forever
