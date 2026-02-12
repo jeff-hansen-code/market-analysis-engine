@@ -45,7 +45,7 @@ variables:
   adoEnvironmentName: 'dev'
 
   # Function project path (UPDATE THIS if your csproj path differs)
-  functionCsproj: './src/MarketAnalysisEngine.Functions/pipelines/MarketAnalysis.Functions/MarketAnalysisEngine.Functions.csproj'
+  functionCsproj: './src/MarketAnalysisEngine.Functions/backend/pipelines/MarketAnalysis.Functions/MarketAnalysisEngine.Functions.csproj'
 
 stages:
   - stage: Build
