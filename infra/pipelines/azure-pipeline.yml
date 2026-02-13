@@ -46,7 +46,7 @@ variables:
 
   # Function project path (UPDATE THIS if your csproj path differs)
   functionCsproj: './src/backend/pipelines/MarketAnalysis.Functions/MarketAnalysis_Functions.csproj'
-`
+  
 stages:
   - stage: Build
     displayName: Build Function App
