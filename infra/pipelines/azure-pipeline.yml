@@ -28,7 +28,7 @@ parameters:
     default: false
 
 variables:
-  # ====== REQUIRED: UPDATE IF NEEDED ======
+  # ====== REQUIRED
   azureServiceConnection: 'Service_Conn_for_Sub1_ARM'
   keyVaultName: 'basekv'
 
@@ -41,10 +41,10 @@ variables:
   backendContainer: 'market-analysis-engine'
   backendKey: 'market-analysis-engine.tfstate'
 
-  # ADO Environment name (you said you created it as "dev")
+  # ADO Environment name ( created it as "dev")
   adoEnvironmentName: 'dev'
 
-  # Function project path (UPDATE THIS if your csproj path differs)
+  # Function project path 
   functionCsproj: 'backend/pipelines/MarketAnalysis.Functions/MarketAnalysis_Functions.csproj'
 
 stages:
@@ -61,15 +61,6 @@ stages:
             inputs:
               packageType: 'sdk'
               version: '8.x'
-
-          # Helpful if csproj path issues: shows you what exists on the agent
-          - script: |
-              echo "Repo root:"
-              ls
-              echo ""
-              echo "Functions folder:"
-              ls -R ./src/MarketAnalysisEngine.Functions | head -n 200
-            displayName: Debug list (helps verify csproj path)
 
           - script: |
               dotnet restore
@@ -106,7 +97,7 @@ stages:
             inputs:
               azureSubscription: '$(azureServiceConnection)'
               KeyVaultName: '$(keyVaultName)'
-              SecretsFilter: 'TFSTATE-STORAGE-KEY'
+              SecretsFilter: 'TFSTATE-STORAGE-KEY,ARM-SUBSCRIPTION-ID,ARM-TENANT-ID,ARM-CLIENT-ID,ARM-CLIENT-SECRET'
               RunAsPreJob: true
 
           - script: |
@@ -132,6 +123,10 @@ stages:
             displayName: terraform plan
             env:
               ARM_ACCESS_KEY: $(TFSTATE-STORAGE-KEY)
+              ARM_SUBSCRIPTION_ID: $(ARM-SUBSCRIPTION-ID)
+              ARM_TENANT_ID: $(ARM-TENANT-ID)
+              ARM_CLIENT_ID: $(ARM-CLIENT-ID)
+              ARM_CLIENT_SECRET: $(ARM-CLIENT-SECRET)
 
           - publish: '$(tfDir)/tfplan'
             artifact: tfplan
@@ -197,7 +192,7 @@ stages:
           - download: current
             artifact: functionapp
 
-          # Read Function App name from Terraform outputs (reliable, no cross-stage output variable drama)
+          # Read Function App name from Terraform outputs
           - task: TerraformInstaller@1
             inputs:
               terraformVersion: '$(tfVersion)'
