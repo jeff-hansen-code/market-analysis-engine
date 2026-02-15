@@ -12,5 +12,6 @@ variable "supabase_api_url" {
 
 variable "name_suffix" {
   type = string
+  default = "x1"
 }
 
