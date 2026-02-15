@@ -15,3 +15,7 @@ variable "name_suffix" {
   default = "x1"
 }
 
+variable "subscription_id" {
+  type = string
+}
+
