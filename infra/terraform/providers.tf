@@ -18,7 +18,7 @@ terraform {
 
 provider "azurerm" {
   features {}
-  resource_provider_registrations = ["Microsoft.Resources", "Microsoft.Storage", "Microsoft.Web", "Microsoft.Insights", "Microsoft.KeyVault"]
+  resource_provider_registrations = "none"
 
 }
 
