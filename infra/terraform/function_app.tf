@@ -1,5 +1,5 @@
 resource "azurerm_linux_function_app" "func" { #$ azurerm_windows_function_app    for Windows function app instead
-  name                = "mae-${local.workspace}-func-${local.name_suffix} "
+  name                = "mae${local.workspace}func${local.name_suffix}"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
 
