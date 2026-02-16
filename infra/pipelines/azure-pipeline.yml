@@ -156,7 +156,7 @@ stages:
                   inputs:
                     azureSubscription: '$(azureServiceConnection)'
                     KeyVaultName: '$(keyVaultName)'
-                    SecretsFilter: 'TFSTATE-STORAGE-KEY'
+                    SecretsFilter: 'TFSTATE-STORAGE-KEY,ARM-SUBSCRIPTION-ID,ARM-TENANT-ID,ARM-CLIENT-ID,ARM-CLIENT-SECRET'
                     RunAsPreJob: true
 
                 - download: current
@@ -174,7 +174,7 @@ stages:
 
                     terraform workspace select ${{ parameters.env }}
 
-                    terraform apply -auto-approve "$(Pipeline.Workspace)/tfplan/tfplan"
+                    terraform apply -input=false -auto-approve "$(Pipeline.Workspace)/tfplan/tfplan"
                   displayName: terraform apply
                   env:
                     ARM_ACCESS_KEY: $(TFSTATE-STORAGE-KEY)
@@ -182,7 +182,6 @@ stages:
                     ARM_TENANT_ID: $(ARM-TENANT-ID)
                     ARM_CLIENT_ID: $(ARM-CLIENT-ID)
                     ARM_CLIENT_SECRET: $(ARM-CLIENT-SECRET)
-                    TF_VAR_subscription_id: $(ARM-SUBSCRIPTION-ID)
 
   - stage: DeployFunction
     displayName: Deploy Function App
