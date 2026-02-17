@@ -16,7 +16,7 @@ namespace MarketAnalysisEngine.Functions
 
         [Function("IngestTopTraded")]
         public static async Task Run(
-            [TimerTrigger("0 0 14-22/2 * * 1-5", RunOnStartup = true)] TimerInfo myTimer, // Simplest (works, no timezone pain): run every 2 hours 14–22 UTC (≈ 8am–4pm Chicago depending on DST)That fires at 14:00, 16:00, 18:00, 20:00, 22:00 UTC Mon–Fri.
+            [TimerTrigger("0 0 14-22/2 * * 1-5", RunOnStartup = false)] TimerInfo myTimer, // Simplest (works, no timezone pain): run every 2 hours 14–22 UTC (≈ 8am–4pm Chicago depending on DST)That fires at 14:00, 16:00, 18:00, 20:00, 22:00 UTC Mon–Fri.
             FunctionContext context  )  //ILogger log)
         {
             var log = context.GetLogger("IngestTopTraded");
