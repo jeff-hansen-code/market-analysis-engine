@@ -18,7 +18,7 @@ namespace MarketAnalysisEngine.Functions
         public static async Task Run(
             // Pick whatever cadence you want; this mirrors your other fundamentals timer pattern.
             // Example: every 2 hours during weekdays (UTC hours 14-22 every 2 hours at :15)
-            [TimerTrigger("0 15 14-22/2 * * 1-5", RunOnStartup = true)] TimerInfo timer,
+            [TimerTrigger("0 15 14-22/2 * * 1-5", RunOnStartup = false)] TimerInfo timer,
             FunctionContext context)
         {
             var log = context.GetLogger("IngestFundamentalsFromFMP");
