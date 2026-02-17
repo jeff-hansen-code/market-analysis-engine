@@ -17,3 +17,13 @@ resource "azurerm_linux_function_app" "func" { #$ azurerm_windows_function_app  
   }
   app_settings = local.app_settings
 }
+
+resource "azurerm_key_vault_access_policy" "func_kv_secrets" {
+  key_vault_id = data.azurerm_key_vault.basekv.id
+
+  tenant_id = azurerm_linux_function_app.func.identity[0].tenant_id
+  object_id = azurerm_linux_function_app.func.identity[0].principal_id
+
+  secret_permissions = ["Get", "List"]
+}
+
