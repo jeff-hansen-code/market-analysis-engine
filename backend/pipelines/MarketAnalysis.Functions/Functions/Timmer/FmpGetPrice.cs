@@ -46,7 +46,7 @@ public class FmpGetPrice
     // Every 2 minutes; market-hours gating keeps us well under 250 calls/day
     [Function("fmp_get_price")]
     public async Task Run(
-        [TimerTrigger("0 */2 * * * *", RunOnStartup = true)] TimerInfo myTimer)
+        [TimerTrigger("0 */2 * * * *", RunOnStartup = false)] TimerInfo myTimer)
     {
         var nowUtc = DateTime.UtcNow;
 
