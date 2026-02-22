@@ -192,7 +192,6 @@ stages:
           - download: current
             artifact: functionapp
 
-          # Read Function App name from Terraform outputs
           - task: TerraformInstaller@1
             inputs:
               terraformVersion: '$(tfVersion)'
@@ -217,11 +216,9 @@ stages:
               terraform workspace select ${{ parameters.env }}
 
               APP_NAME="$(terraform output -raw function_app_name)"
-              echo "Function App name from TF output: $APP_NAME"
               echo "##vso[task.setvariable variable=FUNCTION_APP_NAME]$APP_NAME"
 
               RG="$(terraform output -raw resource_group_name)"
-              echo "Resource Group from TF output: $RG"
               echo "##vso[task.setvariable variable=RESOURCE_GROUP_NAME]$RG"
             displayName: Get function app name from TF output
             env:
@@ -232,18 +229,6 @@ stages:
               ARM_CLIENT_SECRET: $(ARM-CLIENT-SECRET)
               TF_VAR_subscription_id: $(ARM-SUBSCRIPTION-ID)
 
-          # NOTE:
-          # If your Function App uses Managed Identity + Key Vault references in app settings,
-          # you do NOT need to fetch FMP/Supabase secrets here.
-          # Deploy just ships the code package.
-
-          # Use 'az functionapp deploy' (OneDeploy API) instead of the AzureFunctionApp task.
-          # Both AzureFunctionApp@1 and @2 call the syncTriggers API after setting
-          # WEBSITE_RUN_FROM_PACKAGE, which fails with BadGateway (CODE: 400) on Linux
-          # Consumption plans when the host runtime hasn't fully initialised yet.
-          # See: https://github.com/microsoft/azure-pipelines-tasks/issues/20866
-          # 'az functionapp deploy' uses the OneDeploy API which does not call syncTriggers,
-          # eliminating the BadGateway error entirely.
           - bash: |
               az login --service-principal \
                 --username "$(ARM-CLIENT-ID)" \
@@ -253,15 +238,45 @@ stages:
 
               az account set --subscription "$(ARM-SUBSCRIPTION-ID)"
 
-              echo "Deploying zip to '$(FUNCTION_APP_NAME)' in '$(RESOURCE_GROUP_NAME)'..."
-              az functionapp deploy \
+              # Upload zip to blob storage
+              PACKAGE_NAME="package_$(Build.BuildId).zip"
+              STORAGE_ACCOUNT="$(terraform output -raw storage_account_name)"
+              CONTAINER="azure-pipelines-deploy"
+
+              az storage blob upload \
+                --account-name "$STORAGE_ACCOUNT" \
+                --container-name "$CONTAINER" \
+                --name "$PACKAGE_NAME" \
+                --file "$(Pipeline.Workspace)/functionapp/functionapp.zip" \
+                --auth-mode login \
+                --overwrite
+
+              # Generate SAS URL valid for 1 year
+              EXPIRY=$(date -u -d "+1 year" '+%Y-%m-%dT%H:%MZ')
+              SAS_URL=$(az storage blob generate-sas \
+                --account-name "$STORAGE_ACCOUNT" \
+                --container-name "$CONTAINER" \
+                --name "$PACKAGE_NAME" \
+                --permissions r \
+                --expiry "$EXPIRY" \
+                --auth-mode login \
+                --as-user \
+                --full-uri \
+                --output tsv)
+
+              echo "Setting WEBSITE_RUN_FROM_PACKAGE to blob SAS URL..."
+              az functionapp config appsettings set \
                 --name "$(FUNCTION_APP_NAME)" \
                 --resource-group "$(RESOURCE_GROUP_NAME)" \
-                --src-path "$(Pipeline.Workspace)/functionapp/functionapp.zip" \
-                --type zip
+                --settings "WEBSITE_RUN_FROM_PACKAGE=$SAS_URL"
+
+              echo "Restarting function app..."
+              az functionapp restart \
+                --name "$(FUNCTION_APP_NAME)" \
+                --resource-group "$(RESOURCE_GROUP_NAME)"
 
               echo "Deployment complete."
-            displayName: Deploy zip to Function App
+            displayName: Deploy zip to blob and set WEBSITE_RUN_FROM_PACKAGE
             env:
               ARM_CLIENT_ID: $(ARM-CLIENT-ID)
               ARM_CLIENT_SECRET: $(ARM-CLIENT-SECRET)
