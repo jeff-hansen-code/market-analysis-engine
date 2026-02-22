@@ -9,7 +9,7 @@ resource "azurerm_linux_function_app" "func" { #$ azurerm_windows_function_app  
 
   site_config {
     application_stack {
-      dotnet_version = "8.0" #  azurerm provider expects "8.0" on Linux, and "v8.0" on Windows in many examples
+      dotnet_version              = "8.0" #  azurerm provider expects "8.0" on Linux, and "v8.0" on Windows in many examples
       use_dotnet_isolated_runtime = true  # required for dotnet-isolated
     }
   }
