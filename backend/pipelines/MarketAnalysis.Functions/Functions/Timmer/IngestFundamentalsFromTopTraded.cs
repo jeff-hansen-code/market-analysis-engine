@@ -14,7 +14,7 @@ namespace MarketAnalysisEngine.Functions
     {
         private static readonly HttpClient HttpClient = new HttpClient();
 
-       [Function("IngestFundamentalsFromTopTraded")]
+       // [Function("IngestFundamentalsFromTopTraded")]
         public static async Task Run(
             // fires at 14:00, 16:00, 18:00, 20:00, 22:00 UTC Mon–Fri.
             [TimerTrigger("0 15 14-22 * * 1-5", RunOnStartup = false)] TimerInfo timer,
