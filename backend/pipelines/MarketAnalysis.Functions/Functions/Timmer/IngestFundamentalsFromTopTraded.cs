@@ -59,6 +59,7 @@ namespace MarketAnalysisEngine.Functions
                 var symbols = topDoc.RootElement.EnumerateArray()
                     .Select(x => x.TryGetProperty("symbol", out var s) ? s.GetString() : null)
                     .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Select(s => s!)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .Take(maxSymbolsPerRun)
                     .ToList();
@@ -87,6 +88,7 @@ namespace MarketAnalysisEngine.Functions
                 var existing = existingDoc.RootElement.EnumerateArray()
                     .Select(x => x.TryGetProperty("symbol", out var s) ? s.GetString() : null)
                     .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Select(s => s!)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                 var toFetch = symbols.Where(s => !existing.Contains(s)).ToList();

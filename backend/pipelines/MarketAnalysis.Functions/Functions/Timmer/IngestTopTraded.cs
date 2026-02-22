@@ -59,7 +59,7 @@ namespace MarketAnalysisEngine.Functions
                 }
 
                 // 2) Map FMP rows → Supabase rows
-                var rows = new List<Dictionary<string, object>>();
+                var rows = new List<Dictionary<string, object?>>();
                 int rank = 1;
 
                 foreach (var el in doc.RootElement.EnumerateArray())
@@ -75,7 +75,7 @@ namespace MarketAnalysisEngine.Functions
                             ? p.GetInt64()
                             : (long?)null;
 
-                    string GetString(string name)
+                    string? GetString(string name)
                         => el.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String
                             ? p.GetString()
                             : null;
