@@ -238,10 +238,10 @@ stages:
 
               az account set --subscription "$(ARM-SUBSCRIPTION-ID)"
 
-              # Upload zip to blob storage
               PACKAGE_NAME="package_$(Build.BuildId).zip"
-              STORAGE_ACCOUNT="$(terraform output -raw storage_account_name)"
+              STORAGE_ACCOUNT="maedevfuncsacus1"
               CONTAINER="azure-pipelines-deploy"
+              EXPIRY=$(date -u -d "+1 year" '+%Y-%m-%dT%H:%MZ')
 
               az storage blob upload \
                 --account-name "$STORAGE_ACCOUNT" \
@@ -251,26 +251,26 @@ stages:
                 --auth-mode login \
                 --overwrite
 
-              # Generate SAS URL valid for 1 year
-              EXPIRY=$(date -u -d "+1 year" '+%Y-%m-%dT%H:%MZ')
+              ACCOUNT_KEY=$(az storage account keys list \
+                --account-name "$STORAGE_ACCOUNT" \
+                --resource-group "$(RESOURCE_GROUP_NAME)" \
+                --query "[0].value" -o tsv)
+
               SAS_URL=$(az storage blob generate-sas \
                 --account-name "$STORAGE_ACCOUNT" \
                 --container-name "$CONTAINER" \
                 --name "$PACKAGE_NAME" \
                 --permissions r \
                 --expiry "$EXPIRY" \
-                --auth-mode login \
-                --as-user \
+                --account-key "$ACCOUNT_KEY" \
                 --full-uri \
                 --output tsv)
 
-              echo "Setting WEBSITE_RUN_FROM_PACKAGE to blob SAS URL..."
               az functionapp config appsettings set \
                 --name "$(FUNCTION_APP_NAME)" \
                 --resource-group "$(RESOURCE_GROUP_NAME)" \
                 --settings "WEBSITE_RUN_FROM_PACKAGE=$SAS_URL"
 
-              echo "Restarting function app..."
               az functionapp restart \
                 --name "$(FUNCTION_APP_NAME)" \
                 --resource-group "$(RESOURCE_GROUP_NAME)"
