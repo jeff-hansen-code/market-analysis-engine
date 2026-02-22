@@ -206,7 +206,7 @@ stages:
             inputs:
               azureSubscription: '$(azureServiceConnection)'
               KeyVaultName: '$(keyVaultName)'
-              SecretsFilter: 'TFSTATE-STORAGE-KEY'
+              SecretsFilter: 'TFSTATE-STORAGE-KEY,ARM-SUBSCRIPTION-ID,ARM-TENANT-ID,ARM-CLIENT-ID,ARM-CLIENT-SECRET'
               RunAsPreJob: true
 
           - bash: |
@@ -224,6 +224,10 @@ stages:
               APP_NAME="$(terraform output -raw function_app_name)"
               echo "Function App name from TF output: $APP_NAME"
               echo "##vso[task.setvariable variable=FUNCTION_APP_NAME]$APP_NAME"
+
+              RG="$(terraform output -raw resource_group_name)"
+              echo "Resource Group from TF output: $RG"
+              echo "##vso[task.setvariable variable=RESOURCE_GROUP_NAME]$RG"
             displayName: Get function app name from TF output
             env:
               ARM_ACCESS_KEY: $(TFSTATE-STORAGE-KEY)
@@ -238,7 +242,43 @@ stages:
           # you do NOT need to fetch FMP/Supabase secrets here.
           # Deploy just ships the code package.
 
-          - task: AzureFunctionApp@2
+          # Wait for the Function App to be ready after Terraform changes before deploying.
+          # This prevents transient BadGateway errors during trigger sync on Linux Consumption.
+          # Polls the Function App state via az CLI (up to 2 minutes) before deploying.
+          - bash: |
+              az login --service-principal \
+                --username "$(ARM-CLIENT-ID)" \
+                --password "$(ARM-CLIENT-SECRET)" \
+                --tenant "$(ARM-TENANT-ID)" \
+                --output none
+
+              echo "Waiting for Function App '$(FUNCTION_APP_NAME)' to be in Running state..."
+              for i in {1..12}; do
+                STATE=$(az functionapp show \
+                  --name "$(FUNCTION_APP_NAME)" \
+                  --resource-group "$(RESOURCE_GROUP_NAME)" \
+                  --query "state" -o tsv 2>/dev/null || echo "Unknown")
+                echo "Attempt $i/12: state='$STATE'"
+                if [ "$STATE" = "Running" ]; then
+                  echo "Function App is ready."
+                  exit 0
+                fi
+                sleep 10
+              done
+              echo "Function App did not reach Running state within 2 minutes; proceeding anyway."
+            displayName: Wait for Function App to be ready
+            env:
+              ARM_CLIENT_ID: $(ARM-CLIENT-ID)
+              ARM_CLIENT_SECRET: $(ARM-CLIENT-SECRET)
+              ARM_TENANT_ID: $(ARM-TENANT-ID)
+
+          # AzureFunctionApp@1 is used instead of @2 because v2 has a known bug with
+          # Linux Consumption plans where trigger sync fails with BadGateway (CODE: 400).
+          # See: https://github.com/microsoft/azure-pipelines-tasks/issues/20866
+          # retryCountOnTaskFailure: 3 retries the entire task (including trigger sync)
+          # with ~30s between attempts, handling any remaining transient failures.
+          - task: AzureFunctionApp@1
+            retryCountOnTaskFailure: 3
             inputs:
               azureSubscription: '$(azureServiceConnection)'
               appType: functionAppLinux # change to "functionApp" if Windows
