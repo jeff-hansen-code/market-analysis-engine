@@ -3,11 +3,6 @@ trigger:
     include:
       - main
 
-pr:
-  branches:
-    include:
-      - main
-
 parameters:
   - name: env
     displayName: Terraform workspace
