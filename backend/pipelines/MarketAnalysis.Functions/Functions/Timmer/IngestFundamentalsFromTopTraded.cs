@@ -14,7 +14,7 @@ namespace MarketAnalysisEngine.Functions
     {
         private static readonly HttpClient HttpClient = new HttpClient();
 
-       // [Function("IngestFundamentalsFromTopTraded")]
+       [Function("IngestFundamentalsFromTopTraded")]
         public static async Task Run(
             // fires at 14:00, 16:00, 18:00, 20:00, 22:00 UTC Mon–Fri.
             [TimerTrigger("0 15 14-22 * * 1-5", RunOnStartup = false)] TimerInfo timer,
@@ -59,6 +59,7 @@ namespace MarketAnalysisEngine.Functions
                 var symbols = topDoc.RootElement.EnumerateArray()
                     .Select(x => x.TryGetProperty("symbol", out var s) ? s.GetString() : null)
                     .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Select(s => s!)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .Take(maxSymbolsPerRun)
                     .ToList();
@@ -87,6 +88,7 @@ namespace MarketAnalysisEngine.Functions
                 var existing = existingDoc.RootElement.EnumerateArray()
                     .Select(x => x.TryGetProperty("symbol", out var s) ? s.GetString() : null)
                     .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Select(s => s!)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                 var toFetch = symbols.Where(s => !existing.Contains(s)).ToList();

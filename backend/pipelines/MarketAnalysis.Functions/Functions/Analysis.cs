@@ -12,25 +12,31 @@ using Microsoft.Extensions.Logging;
 
 namespace MarketEngine.Functions
 {
-    public static class Analysis
+    public class Analysis
     {
         private static readonly HttpClient http = new HttpClient();
         private static readonly string? SUPABASE_API_URL = Environment.GetEnvironmentVariable("SUPABASE_API_URL");
         private static readonly string? SERVICE_ROLE = Environment.GetEnvironmentVariable("SUPABASE_SERVICE_ROLE_KEY");
 
+        private readonly ILogger _logger;
+
+        public Analysis(ILoggerFactory loggerFactory)
+        {
+            _logger = loggerFactory.CreateLogger<Analysis>();
+        }
+
         [Function("Analysis")]
-        public static async Task<IActionResult> Run(
+        public async Task<IActionResult> Run(
             [HttpTrigger(AuthorizationLevel.Function, "get", Route = "analysis/{symbol}")] HttpRequest req,
-            string symbol,
-            ILogger log)
+            string symbol)
         {
             if (string.IsNullOrWhiteSpace(SUPABASE_API_URL) || string.IsNullOrWhiteSpace(SERVICE_ROLE))
             {
-                log.LogError("Missing env vars: SUPABASE_API_URL and/or SUPABASE_SERVICE_ROLE_KEY");
+                _logger.LogError("Missing env vars: SUPABASE_API_URL and/or SUPABASE_SERVICE_ROLE_KEY");
                 return new StatusCodeResult(StatusCodes.Status500InternalServerError);
             }
 
-            log.LogInformation("Running analysis for {Symbol}", symbol);
+            _logger.LogInformation("Running analysis for {Symbol}", symbol);
 
             int points = TryParse(req.Query["points"].FirstOrDefault(), 200);
             int window = TryParse(req.Query["window"].FirstOrDefault(), 20);
