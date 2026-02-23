@@ -14,6 +14,12 @@ resource "azurerm_storage_account" "funcsa" {
   account_replication_type = "LRS"
 }
 
+resource "azurerm_role_assignment" "pipeline_blob_contributor" {
+  scope                = azurerm_storage_account.funcsa.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = var.pipeline_service_principal_object_id
+}
+
 resource "azurerm_service_plan" "plan" {
   name                = "mae-${local.workspace}-plan"
   resource_group_name = azurerm_resource_group.rg.name

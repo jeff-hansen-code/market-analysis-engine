@@ -19,3 +19,7 @@ variable "subscription_id" {
   type = string
 }
 
+
+variable "pipeline_service_principal_object_id" {
+  type = string
+}
