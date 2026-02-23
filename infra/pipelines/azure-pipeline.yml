@@ -92,7 +92,7 @@ stages:
             inputs:
               azureSubscription: '$(azureServiceConnection)'
               KeyVaultName: '$(keyVaultName)'
-              SecretsFilter: 'TFSTATE-STORAGE-KEY,ARM-SUBSCRIPTION-ID,ARM-TENANT-ID,ARM-CLIENT-ID,ARM-CLIENT-SECRET'
+              SecretsFilter: 'TFSTATE-STORAGE-KEY,ARM-SUBSCRIPTION-ID,ARM-TENANT-ID,ARM-CLIENT-ID,ARM-CLIENT-SECRET,SERVICE-PRINCIPAL-ID'
               RunAsPreJob: true
 
           - script: |
@@ -123,6 +123,7 @@ stages:
               ARM_CLIENT_ID: $(ARM-CLIENT-ID)
               ARM_CLIENT_SECRET: $(ARM-CLIENT-SECRET)
               TF_VAR_subscription_id: $(ARM-SUBSCRIPTION-ID)
+              TF_VAR_pipeline_service_principal_object_id: $(SERVICE-PRINCIPAL-ID)
 
           - publish: '$(tfDir)/tfplan'
             artifact: tfplan
@@ -151,7 +152,7 @@ stages:
                   inputs:
                     azureSubscription: '$(azureServiceConnection)'
                     KeyVaultName: '$(keyVaultName)'
-                    SecretsFilter: 'TFSTATE-STORAGE-KEY,ARM-SUBSCRIPTION-ID,ARM-TENANT-ID,ARM-CLIENT-ID,ARM-CLIENT-SECRET'
+                    SecretsFilter: 'TFSTATE-STORAGE-KEY,ARM-SUBSCRIPTION-ID,ARM-TENANT-ID,ARM-CLIENT-ID,ARM-CLIENT-SECRET,SERVICE-PRINCIPAL-ID'
                     RunAsPreJob: true
 
                 - download: current
@@ -177,6 +178,9 @@ stages:
                     ARM_TENANT_ID: $(ARM-TENANT-ID)
                     ARM_CLIENT_ID: $(ARM-CLIENT-ID)
                     ARM_CLIENT_SECRET: $(ARM-CLIENT-SECRET)
+                    TF_VAR_pipeline_service_principal_object_id: $(SERVICE-PRINCIPAL-ID)
+
+
 
   - stage: DeployFunction
     displayName: Deploy Function App
@@ -200,7 +204,7 @@ stages:
             inputs:
               azureSubscription: '$(azureServiceConnection)'
               KeyVaultName: '$(keyVaultName)'
-              SecretsFilter: 'TFSTATE-STORAGE-KEY,ARM-SUBSCRIPTION-ID,ARM-TENANT-ID,ARM-CLIENT-ID,ARM-CLIENT-SECRET'
+              SecretsFilter: 'TFSTATE-STORAGE-KEY,ARM-SUBSCRIPTION-ID,ARM-TENANT-ID,ARM-CLIENT-ID,ARM-CLIENT-SECRET,SERVICE-PRINCIPAL-ID'
               RunAsPreJob: true
 
           - bash: |
@@ -228,6 +232,7 @@ stages:
               ARM_CLIENT_ID: $(ARM-CLIENT-ID)
               ARM_CLIENT_SECRET: $(ARM-CLIENT-SECRET)
               TF_VAR_subscription_id: $(ARM-SUBSCRIPTION-ID)
+              TF_VAR_pipeline_service_principal_object_id: $(SERVICE-PRINCIPAL-ID)
 
           - bash: |
               az login --service-principal \
@@ -239,7 +244,7 @@ stages:
               az account set --subscription "$(ARM-SUBSCRIPTION-ID)"
 
               PACKAGE_NAME="package_$(Build.BuildId).zip"
-              STORAGE_ACCOUNT="maedevfuncsacus1"
+              STORAGE_ACCOUNT="$(terraform output -raw func_storage_account_name)"  
               CONTAINER="azure-pipelines-deploy"
               EXPIRY=$(date -u -d "+1 year" '+%Y-%m-%dT%H:%MZ')
 
@@ -282,7 +287,7 @@ stages:
               ARM_CLIENT_SECRET: $(ARM-CLIENT-SECRET)
               ARM_TENANT_ID: $(ARM-TENANT-ID)
               ARM_SUBSCRIPTION_ID: $(ARM-SUBSCRIPTION-ID)
-
+              TF_VAR_pipeline_service_principal_object_id: $(SERVICE-PRINCIPAL-ID)
   - stage: Destroy
     displayName: Terraform Destroy (MANUAL ONLY)
     dependsOn: []
@@ -307,7 +312,7 @@ stages:
                   inputs:
                     azureSubscription: '$(azureServiceConnection)'
                     KeyVaultName: '$(keyVaultName)'
-                    SecretsFilter: 'TFSTATE-STORAGE-KEY,ARM-SUBSCRIPTION-ID,ARM-TENANT-ID,ARM-CLIENT-ID,ARM-CLIENT-SECRET'
+                    SecretsFilter: 'TFSTATE-STORAGE-KEY,ARM-SUBSCRIPTION-ID,ARM-TENANT-ID,ARM-CLIENT-ID,ARM-CLIENT-SECRET,SERVICE-PRINCIPAL-ID'
                     RunAsPreJob: true
 
                 - script: |
@@ -331,3 +336,4 @@ stages:
                     ARM_CLIENT_ID: $(ARM-CLIENT-ID)
                     ARM_CLIENT_SECRET: $(ARM-CLIENT-SECRET)
                     TF_VAR_subscription_id: $(ARM-SUBSCRIPTION-ID)
+                    TF_VAR_pipeline_service_principal_object_id: $(SERVICE-PRINCIPAL-ID)
