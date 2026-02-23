@@ -224,6 +224,10 @@ stages:
 
               RG="$(terraform output -raw resource_group_name)"
               echo "##vso[task.setvariable variable=RESOURCE_GROUP_NAME]$RG"
+              
+              SA_NAME="$(terraform output -raw func_storage_account_name)"
+              echo "##vso[task.setvariable variable=FUNC_STORAGE_ACCOUNT_NAME]$SA_NAME"
+
             displayName: Get function app name from TF output
             env:
               ARM_ACCESS_KEY: $(TFSTATE-STORAGE-KEY)
@@ -249,7 +253,7 @@ stages:
               EXPIRY=$(date -u -d "+1 year" '+%Y-%m-%dT%H:%MZ')
 
               az storage blob upload \
-                --account-name "$STORAGE_ACCOUNT" \
+                --account-name "$(FUNC_STORAGE_ACCOUNT_NAME)" \
                 --container-name "$CONTAINER" \
                 --name "$PACKAGE_NAME" \
                 --file "$(Pipeline.Workspace)/functionapp/functionapp.zip" \
@@ -257,12 +261,12 @@ stages:
                 --overwrite
 
               ACCOUNT_KEY=$(az storage account keys list \
-                --account-name "$STORAGE_ACCOUNT" \
+                --account-name "$(FUNC_STORAGE_ACCOUNT_NAME)" \
                 --resource-group "$(RESOURCE_GROUP_NAME)" \
                 --query "[0].value" -o tsv)
 
               SAS_URL=$(az storage blob generate-sas \
-                --account-name "$STORAGE_ACCOUNT" \
+                --account-name "$(FUNC_STORAGE_ACCOUNT_NAME)" \
                 --container-name "$CONTAINER" \
                 --name "$PACKAGE_NAME" \
                 --permissions r \
