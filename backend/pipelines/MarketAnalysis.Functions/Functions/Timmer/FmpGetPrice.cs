@@ -83,9 +83,11 @@ public class FmpGetPrice
             {
                 batchNum++;
                 var csv = string.Join(",", batch);
+                var fmpBaseUrl = Environment.GetEnvironmentVariable("FMP_BASE_URL")
+                    ?? throw new Exception("FMP_BASE_URL not found");
 
                 var url =
-                    $"https://financialmodelingprep.com/stable/batch-quote?symbols={csv}&apikey={_fmpApiKey}";
+                    $"{fmpBaseUrl}batch-quote?symbols={csv}&apikey={_fmpApiKey}";
 
                 var response = await Http.GetAsync(url);
 
