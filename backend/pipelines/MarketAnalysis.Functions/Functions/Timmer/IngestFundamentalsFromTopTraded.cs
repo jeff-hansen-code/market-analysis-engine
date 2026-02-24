@@ -105,7 +105,10 @@ namespace MarketAnalysisEngine.Functions
                 // 3) For each symbol, call FMP and insert rows into fundamentals_raw
                 foreach (var sym in toFetch)
                 {
-                    var fmpUrl = $"https://financialmodelingprep.com/stable/income-statement?symbol={Uri.EscapeDataString(sym)}&period={period}&apikey={fmpApiKey}";
+                    var fmpBaseUrl = Environment.GetEnvironmentVariable("FMP_BASE_URL")
+                    ?? throw new Exception("FMP_BASE_URL not found");
+
+                    var fmpUrl = $"{fmpBaseUrl}income-statement?symbol={Uri.EscapeDataString(sym)}&period={period}&apikey={fmpApiKey}";
                     var fmpResp = await HttpClient.GetAsync(fmpUrl);
 
                     if (!fmpResp.IsSuccessStatusCode)

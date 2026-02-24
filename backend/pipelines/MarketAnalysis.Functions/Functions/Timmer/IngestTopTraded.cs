@@ -35,9 +35,11 @@ namespace MarketAnalysisEngine.Functions
             try
             {
                 var nowUtc = DateTime.UtcNow;
+                var fmpBaseUrl = Environment.GetEnvironmentVariable("FMP_BASE_URL")
+                    ?? throw new Exception("FMP_BASE_URL not found");
 
                 // 1) Call FMP Top Traded / Most Actives
-                var fmpUrl = $"https://financialmodelingprep.com/stable/most-actives?apikey={fmpApiKey}";
+                var fmpUrl = $"{fmpBaseUrl}most-actives?apikey={fmpApiKey}";
                 log.LogInformation("Requesting Top Traded from {Url}", fmpUrl);
 
                 var fmpResponse = await HttpClient.GetAsync(fmpUrl);

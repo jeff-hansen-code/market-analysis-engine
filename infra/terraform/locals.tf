@@ -13,9 +13,19 @@ locals {
     APPINSIGHTS_INSTRUMENTATIONKEY        = azurerm_application_insights.ai.instrumentation_key
     APPLICATIONINSIGHTS_CONNECTION_STRING = azurerm_application_insights.ai.connection_string
 
-    FMP_API_KEY               = "@Microsoft.KeyVault(SecretUri=${local.kv_uri}secrets/FMP-API-KEY)"
+    FMP_API_KEY  = "@Microsoft.KeyVault(SecretUri=${local.kv_uri}secrets/FMP-API-KEY)"
+    FMP_BASE_URL = "@Microsoft.KeyVault(SecretUri=${local.kv_uri}secrets/FMP-BASE-URL)"
+
+    SUPABASE_DB_URL  = "@Microsoft.KeyVault(SecretUri=${local.kv_uri}secrets/SUPABASE-DB-URL)"
+    SUPABASE_API_URL = "@Microsoft.KeyVault(SecretUri=${local.kv_uri}secrets/SUPABASE-API-URL)"
+
     SUPABASE_SERVICE_ROLE_KEY = "@Microsoft.KeyVault(SecretUri=${local.kv_uri}secrets/SUPABASE-SERVICE-ROLE-KEY)"
-    SUPABASE_API_URL          = var.supabase_api_url
+
+    FMP_MAX_SYMBOLS_PER_RUN = "900"
+    FMP_BATCH_SIZE          = "200"
+    BYPASS_MARKET_HOURS     = "true"
+
+
   }
 
 }
