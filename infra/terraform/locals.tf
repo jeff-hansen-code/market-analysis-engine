@@ -23,7 +23,7 @@ locals {
 
     FMP_MAX_SYMBOLS_PER_RUN = "900"
     FMP_BATCH_SIZE          = "200"
-    BYPASS_MARKET_HOURS     = "true"
+    BYPASS_MARKET_HOURS     = "false"
 
 
   }
