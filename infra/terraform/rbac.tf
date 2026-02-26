@@ -15,3 +15,21 @@ resource "azurerm_role_assignment" "func_kv_secrets_user" {
   role_definition_name = "Key Vault Secrets User"
   principal_id         = azurerm_linux_function_app.func.identity[0].principal_id
 }
+
+resource "azurerm_role_assignment" "func_storage_queue" {
+  scope                = azurerm_storage_account.funcsa.id
+  role_definition_name = "Storage Queue Data Contributor"
+  principal_id         = azurerm_linux_function_app.func.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "func_storage_table" {
+  scope                = azurerm_storage_account.funcsa.id
+  role_definition_name = "Storage Table Data Contributor"
+  principal_id         = azurerm_linux_function_app.func.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "func_storage_blob_contrib" {
+  scope                = azurerm_storage_account.funcsa.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_linux_function_app.func.identity[0].principal_id
+}
