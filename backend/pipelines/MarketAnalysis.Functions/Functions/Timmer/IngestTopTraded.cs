@@ -16,9 +16,19 @@ namespace MarketAnalysisEngine.Functions
 
         [Function("IngestTopTraded")]
         public static async Task Run(
-            [TimerTrigger("0 0 14-22/2 * * 1-5", RunOnStartup = false)] TimerInfo myTimer, // Simplest (works, no timezone pain): run every 2 hours 14–22 UTC (≈ 8am–4pm Chicago depending on DST)That fires at 14:00, 16:00, 18:00, 20:00, 22:00 UTC Mon–Fri.
-            FunctionContext context  )  //ILogger log)
+            [TimerTrigger("0 45 14-20 * * 1-5", RunOnStartup = false)] TimerInfo timer,
+            FunctionContext context)
+            => await RunIngest(context);
+
+        [Function("IngestTopTradedClose")]
+        public static async Task RunClose(
+            [TimerTrigger("0 0 21 * * 1-5", RunOnStartup = false)] TimerInfo timer,
+            FunctionContext context)
+            => await RunIngest(context);
+
+        private static async Task RunIngest(FunctionContext context)
         {
+            
             var log = context.GetLogger("IngestTopTraded");
             var fmpApiKey  = Environment.GetEnvironmentVariable("FMP_API_KEY");
             var supabaseUrl = Environment.GetEnvironmentVariable("SUPABASE_API_URL");
@@ -150,6 +160,7 @@ namespace MarketAnalysisEngine.Functions
                 log.LogError(ex, "Unhandled exception in IngestTopTraded.");
             }
         }
+    
     }
 }
 
