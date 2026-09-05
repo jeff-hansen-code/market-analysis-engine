@@ -14,42 +14,75 @@ namespace MarketAnalysisEngine.Functions
     {
         private static readonly HttpClient HttpClient = new HttpClient();
 
+        private sealed class StatementConfig
+        {
+            public StatementConfig(string endpoint, string provider, string statementType)
+            {
+                Endpoint = endpoint;
+                Provider = provider;
+                StatementType = statementType;
+            }
+
+            public string Endpoint { get; }
+            public string Provider { get; }
+            public string StatementType { get; }
+        }
+
         [Function("IngestFundamentalsFromFMP")]
         public static async Task Run(
-            // Pick whatever cadence you want; this mirrors your other fundamentals timer pattern.
-            // Example: every 2 hours during weekdays (UTC hours 14-22 every 2 hours at :15)
+            // Every 2 hours during weekdays, UTC hours 14-22 at :15
             [TimerTrigger("0 15 14-22/2 * * 1-5", RunOnStartup = false)] TimerInfo timer,
             FunctionContext context)
         {
             var log = context.GetLogger("IngestFundamentalsFromFMP");
 
             var fmpApiKey = Environment.GetEnvironmentVariable("FMP_API_KEY");
+            var fmpBaseUrl = Environment.GetEnvironmentVariable("FMP_BASE_URL");
             var supabaseUrl = Environment.GetEnvironmentVariable("SUPABASE_API_URL");
             var supabaseKey = Environment.GetEnvironmentVariable("SUPABASE_SERVICE_ROLE_KEY");
 
             if (string.IsNullOrWhiteSpace(fmpApiKey) ||
+                string.IsNullOrWhiteSpace(fmpBaseUrl) ||
                 string.IsNullOrWhiteSpace(supabaseUrl) ||
                 string.IsNullOrWhiteSpace(supabaseKey))
             {
-                log.LogError("Missing env vars: FMP_API_KEY, SUPABASE_API_URL, SUPABASE_SERVICE_ROLE_KEY");
+                log.LogError(
+                    "Missing env vars: FMP_API_KEY, FMP_BASE_URL, SUPABASE_API_URL, SUPABASE_SERVICE_ROLE_KEY");
                 return;
             }
 
+            fmpBaseUrl = fmpBaseUrl.TrimEnd('/') + "/";
             supabaseUrl = supabaseUrl.TrimEnd('/');
 
-            // knobs
-            const int maxSymbolsPerRun = 25;                 // safe default for fundamentals
+            const int maxSymbolsPerRun = 25;
             const string period = "quarter";
-            const string statementType = "income_statement";
-            const string provider = "fmp_income_statement";
 
-            // “recent enough” cutoff (quarterly): if you want to skip truly old rows
+            // Each statement gets stored in fundamentals_raw with its own
+            // provider + statement_type, but uses the same table/schema.
+            var statements = new[]
+            {
+                new StatementConfig(
+                    endpoint: "income-statement",
+                    provider: "fmp_income_statement",
+                    statementType: "income_statement"),
+
+                new StatementConfig(
+                    endpoint: "balance-sheet-statement",
+                    provider: "fmp_balance_sheet_statement",
+                    statementType: "balance_sheet"),
+
+                new StatementConfig(
+                    endpoint: "cash-flow-statement",
+                    provider: "fmp_cash_flow_statement",
+                    statementType: "cash_flow")
+            };
+
+            // Quarterly data: consider anything within roughly 120 days recent enough.
             var recencyCutoff = DateTime.UtcNow.AddDays(-120).ToString("yyyy-MM-dd");
 
             try
             {
-                // 1) Pull allowed symbols from the allowlist table
-                //    PostgREST: /rest/v1/fmp_free_fundamentals_allowed?select=symbol&order=symbol.asc&limit=25
+                // 1) Pull symbols from the FMP free-plan allowlist.
                 var allowUrl =
                     $"{supabaseUrl}/rest/v1/fmp_free_fundamentals_allowed" +
                     $"?select=symbol" +
@@ -72,105 +105,86 @@ namespace MarketAnalysisEngine.Functions
                     return;
                 }
 
-                // 2) Check which already have recent fundamentals in fundamentals_raw
                 var symbolList = string.Join(",", symbols.Select(Uri.EscapeDataString));
 
-                // Add as_of=gte cutoff so “old historical” rows don’t block refresh forever
-                var fundamentalsCheckUrl =
-                    $"{supabaseUrl}/rest/v1/fundamentals_raw" +
-                    $"?select=symbol" +
-                    $"&provider=eq.{provider}" +
-                    $"&statement_type=eq.{statementType}" +
-                    $"&period=eq.{period}" +
-                    $"&as_of=gte.{Uri.EscapeDataString(recencyCutoff)}" +
-                    $"&symbol=in.({symbolList})" +
-                    $"&limit=5000";
+                // 2) Check EACH statement type independently.
+                //    Having a recent income statement should not prevent
+                //    balance sheet or cash flow from being fetched.
+                var missingByStatement =
+                    new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
-                var existingJson = await SupabaseGet(fundamentalsCheckUrl, supabaseKey);
-                using var existingDoc = JsonDocument.Parse(existingJson);
-
-                var existing = existingDoc.RootElement.EnumerateArray()
-                    .Select(x => x.TryGetProperty("symbol", out var s) ? s.GetString() : null)
-                    .Where(s => !string.IsNullOrWhiteSpace(s))
-                    .Select(s => s!)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-                var toFetch = symbols.Where(s => !existing.Contains(s)).ToList();
-
-                if (toFetch.Count == 0)
+                foreach (var statement in statements)
                 {
-                    log.LogInformation("All {Count} allowlisted symbols already have recent fundamentals.", symbols.Count);
+                    var checkUrl =
+                        $"{supabaseUrl}/rest/v1/fundamentals_raw" +
+                        $"?select=symbol" +
+                        $"&provider=eq.{Uri.EscapeDataString(statement.Provider)}" +
+                        $"&statement_type=eq.{Uri.EscapeDataString(statement.StatementType)}" +
+                        $"&period=eq.{period}" +
+                        $"&as_of=gte.{Uri.EscapeDataString(recencyCutoff)}" +
+                        $"&symbol=in.({symbolList})" +
+                        $"&limit=5000";
+
+                    var existingJson = await SupabaseGet(checkUrl, supabaseKey);
+                    using var existingDoc = JsonDocument.Parse(existingJson);
+
+                    var existingSymbols = existingDoc.RootElement.EnumerateArray()
+                        .Select(x => x.TryGetProperty("symbol", out var s) ? s.GetString() : null)
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .Select(s => s!)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    var missingSymbols = symbols
+                        .Where(s => !existingSymbols.Contains(s))
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    missingByStatement[statement.StatementType] = missingSymbols;
+
+                    log.LogInformation(
+                        "{StatementType}: {MissingCount} of {TotalCount} symbols need refresh.",
+                        statement.StatementType,
+                        missingSymbols.Count,
+                        symbols.Count);
+                }
+
+                if (missingByStatement.Values.All(x => x.Count == 0))
+                {
+                    log.LogInformation(
+                        "All {Count} allowlisted symbols already have recent income, balance sheet, and cash flow data.",
+                        symbols.Count);
                     return;
                 }
 
-                log.LogInformation("Fetching income statements for {Count} symbols: {Symbols}",
-                    toFetch.Count, string.Join(",", toFetch));
-
-                // 3) For each symbol, call FMP and insert rows into fundamentals_raw
-                foreach (var sym in toFetch)
+                // 3) Fetch only the statement types that are missing/stale.
+                foreach (var sym in symbols)
                 {
-                    var fmpBaseUrl = Environment.GetEnvironmentVariable("FMP_BASE_URL")
-                    ?? throw new Exception("FMP_BASE_URL not found");
-
-                    var fmpUrl =
-                        $"{fmpBaseUrl}income-statement" +
-                        $"?symbol={Uri.EscapeDataString(sym)}" +
-                        $"&period={period}" +
-                        $"&apikey={fmpApiKey}";
-
-                    var fmpResp = await HttpClient.GetAsync(fmpUrl);
-
-                    if (!fmpResp.IsSuccessStatusCode)
+                    foreach (var statement in statements)
                     {
-                        var body = await fmpResp.Content.ReadAsStringAsync();
-                        log.LogWarning("FMP income-statement failed for {Symbol}: {Status} {Body}", sym, fmpResp.StatusCode, body);
-                        continue;
-                    }
-
-                    var fmpJson = await fmpResp.Content.ReadAsStringAsync();
-                    using var fmpDoc = JsonDocument.Parse(fmpJson);
-
-                    if (fmpDoc.RootElement.ValueKind != JsonValueKind.Array)
-                    {
-                        log.LogWarning("Unexpected FMP income-statement shape for {Symbol}. Raw: {Json}", sym, fmpJson);
-                        continue;
-                    }
-
-                    var rows = new List<Dictionary<string, object?>>();
-
-                    foreach (var item in fmpDoc.RootElement.EnumerateArray())
-                    {
-                        if (!item.TryGetProperty("date", out var dateEl) || dateEl.ValueKind != JsonValueKind.String)
+                        if (!missingByStatement[statement.StatementType].Contains(sym))
                             continue;
 
-                        var asOfDate = dateEl.GetString();
-                        if (string.IsNullOrWhiteSpace(asOfDate))
-                            continue;
-
-                        rows.Add(new Dictionary<string, object?>
+                        try
                         {
-                            ["symbol"] = sym,
-                            ["provider"] = provider,
-                            ["statement_type"] = statementType,
-                            ["period"] = period,
-                            ["as_of"] = asOfDate,          // YYYY-MM-DD
-                            ["raw_payload"] = item         // JsonElement is OK; serializer will handle it
-                        });
+                            await FetchAndStoreStatement(
+                                symbol: sym,
+                                statement: statement,
+                                period: period,
+                                fmpBaseUrl: fmpBaseUrl,
+                                fmpApiKey: fmpApiKey,
+                                supabaseUrl: supabaseUrl,
+                                supabaseKey: supabaseKey,
+                                log: log);
+                        }
+                        catch (Exception ex)
+                        {
+                            // One endpoint/symbol failure should not kill the entire run.
+                            log.LogError(
+                                ex,
+                                "Failed processing {StatementType} for {Symbol}. Continuing.",
+                                statement.StatementType,
+                                sym);
+                        }
                     }
-
-                    if (rows.Count == 0)
-                    {
-                        log.LogInformation("No income-statement rows for {Symbol}.", sym);
-                        continue;
-                    }
-
-                    var insertUrl =
-                        $"{supabaseUrl}/rest/v1/fundamentals_raw" +
-                        $"?on_conflict=symbol,provider,statement_type,period,as_of";
-
-                    await SupabasePost(insertUrl, supabaseKey, rows, preferResolutionIgnoreDuplicates: true);
-
-                    log.LogInformation("Inserted {Count} fundamentals rows for {Symbol}.", rows.Count, sym);
                 }
             }
             catch (Exception ex)
@@ -179,7 +193,110 @@ namespace MarketAnalysisEngine.Functions
             }
         }
 
-        private static async Task<string> SupabaseGet(string url, string supabaseKey)
+        private static async Task FetchAndStoreStatement(
+            string symbol,
+            StatementConfig statement,
+            string period,
+            string fmpBaseUrl,
+            string fmpApiKey,
+            string supabaseUrl,
+            string supabaseKey,
+            ILogger log)
+        {
+            var fmpUrl =
+                $"{fmpBaseUrl}{statement.Endpoint}" +
+                $"?symbol={Uri.EscapeDataString(symbol)}" +
+                $"&period={period}" +
+                $"&apikey={Uri.EscapeDataString(fmpApiKey)}";
+
+            var fmpResp = await HttpClient.GetAsync(fmpUrl);
+
+            if (!fmpResp.IsSuccessStatusCode)
+            {
+                var body = await fmpResp.Content.ReadAsStringAsync();
+
+                log.LogWarning(
+                    "FMP {Endpoint} failed for {Symbol}: {Status} {Body}",
+                    statement.Endpoint,
+                    symbol,
+                    fmpResp.StatusCode,
+                    body);
+
+                return;
+            }
+
+            var fmpJson = await fmpResp.Content.ReadAsStringAsync();
+            using var fmpDoc = JsonDocument.Parse(fmpJson);
+
+            if (fmpDoc.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                log.LogWarning(
+                    "Unexpected FMP {Endpoint} response shape for {Symbol}. Raw: {Json}",
+                    statement.Endpoint,
+                    symbol,
+                    fmpJson);
+
+                return;
+            }
+
+            var rows = new List<Dictionary<string, object?>>();
+
+            foreach (var item in fmpDoc.RootElement.EnumerateArray())
+            {
+                if (!item.TryGetProperty("date", out var dateEl) ||
+                    dateEl.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
+
+                var asOfDate = dateEl.GetString();
+
+                if (string.IsNullOrWhiteSpace(asOfDate))
+                    continue;
+
+                rows.Add(new Dictionary<string, object?>
+                {
+                    ["symbol"] = symbol,
+                    ["provider"] = statement.Provider,
+                    ["statement_type"] = statement.StatementType,
+                    ["period"] = period,
+                    ["as_of"] = asOfDate,
+                    ["raw_payload"] = item
+                });
+            }
+
+            if (rows.Count == 0)
+            {
+                log.LogInformation(
+                    "No {StatementType} rows returned for {Symbol}.",
+                    statement.StatementType,
+                    symbol);
+
+                return;
+            }
+
+            // Existing unique constraint:
+            // symbol, provider, statement_type, period, as_of
+            var insertUrl =
+                $"{supabaseUrl}/rest/v1/fundamentals_raw" +
+                $"?on_conflict=symbol,provider,statement_type,period,as_of";
+
+            await SupabasePost(
+                insertUrl,
+                supabaseKey,
+                rows,
+                preferResolutionIgnoreDuplicates: true);
+
+            log.LogInformation(
+                "Inserted {Count} {StatementType} rows for {Symbol}.",
+                rows.Count,
+                statement.StatementType,
+                symbol);
+        }
+
+        private static async Task<string> SupabaseGet(
+            string url,
+            string supabaseKey)
         {
             var req = new HttpRequestMessage(HttpMethod.Get, url);
             req.Headers.Add("apikey", supabaseKey);
@@ -194,19 +311,27 @@ namespace MarketAnalysisEngine.Functions
             return body;
         }
 
-        private static async Task SupabasePost(string url, string supabaseKey, object payload, bool preferResolutionIgnoreDuplicates)
+        private static async Task SupabasePost(
+            string url,
+            string supabaseKey,
+            object payload,
+            bool preferResolutionIgnoreDuplicates)
         {
-            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            });
+            var json = JsonSerializer.Serialize(
+                payload,
+                new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                });
 
             var req = new HttpRequestMessage(HttpMethod.Post, url);
             req.Headers.Add("apikey", supabaseKey);
             req.Headers.Add("Authorization", $"Bearer {supabaseKey}");
-            req.Headers.Add("Prefer", preferResolutionIgnoreDuplicates
-                ? "resolution=ignore-duplicates,return=minimal"
-                : "return=minimal");
+            req.Headers.Add(
+                "Prefer",
+                preferResolutionIgnoreDuplicates
+                    ? "resolution=ignore-duplicates,return=minimal"
+                    : "return=minimal");
 
             req.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
