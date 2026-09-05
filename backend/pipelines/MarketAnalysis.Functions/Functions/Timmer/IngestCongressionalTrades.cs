@@ -18,9 +18,8 @@ namespace MarketAnalysisEngine.Functions
 
         [Function("IngestCongressionalTrades")]
         public static async Task Run(
-            // 3 times per weekday:
-            // 14:15 UTC, 18:15 UTC, 22:15 UTC
-            [TimerTrigger("0 15 14-22/4 * * 1-5", RunOnStartup = false)]
+            // 3 times per hour:
+            [TimerTrigger("0 5,25,45 13-21 * * 1-5", RunOnStartup = false)]
             TimerInfo timer,
             FunctionContext context)
         {
