@@ -16,7 +16,7 @@ namespace MarketAnalysisEngine.Functions
 
         [Function("IngestTopTraded")]
         public static async Task Run(
-            [TimerTrigger("0 45 14-20 * * 1-5", RunOnStartup = false)] TimerInfo timer,
+            [TimerTrigger("0 45 14-20/2 * * 1-5", RunOnStartup = false)] TimerInfo timer,
             FunctionContext context)
             => await RunIngest(context);
 
