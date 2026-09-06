@@ -84,7 +84,7 @@ namespace MarketAnalysisEngine.Functions
             {
                 // 1) Pull symbols from the FMP free-plan allowlist.
                 var allowUrl =
-                    $"{supabaseUrl}/rest/v1/fmp_free_fundamentals_allowed" +
+                    $"{supabaseUrl}/rest/v1/fmp_free_tier_symbols" +
                     $"?select=symbol" +
                     $"&order=symbol.asc" +
                     $"&limit={maxSymbolsPerRun}";
@@ -101,7 +101,7 @@ namespace MarketAnalysisEngine.Functions
 
                 if (symbols.Count == 0)
                 {
-                    log.LogInformation("No symbols found in fmp_free_fundamentals_allowed.");
+                    log.LogInformation("No symbols found in fmp_free_tier_symbols.");
                     return;
                 }
 
