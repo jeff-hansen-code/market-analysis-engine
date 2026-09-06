@@ -82,11 +82,20 @@ namespace MarketAnalysisEngine.Functions
 
             try
             {
-                // 1) Pull symbols from the FMP free-plan allowlist.
+                // 1) Pull symbols that have never been checked,
+                //    or whose fundamentals haven't been checked in 120 days.
+                var staleCutoff = DateTime.UtcNow
+                    .AddDays(-120)
+                    .ToString("o");
+
                 var allowUrl =
                     $"{supabaseUrl}/rest/v1/fmp_free_tier_symbols" +
-                    $"?select=symbol" +
-                    $"&order=symbol.asc" +
+                    $"?select=symbol,last_fundamentals_checked_at" +
+                    $"&or=(" +
+                        $"last_fundamentals_checked_at.is.null," +
+                        $"last_fundamentals_checked_at.lt.{Uri.EscapeDataString(staleCutoff)}" +
+                    $")" +
+                    $"&order=last_fundamentals_checked_at.asc.nullsfirst,symbol.asc" +
                     $"&limit={maxSymbolsPerRun}";
 
                 var allowJson = await SupabaseGet(allowUrl, supabaseKey);
@@ -156,12 +165,26 @@ namespace MarketAnalysisEngine.Functions
                 }
 
                 // 3) Fetch only the statement types that are missing/stale.
+                //
+                // IMPORTANT:
+                // - Successful FMP response with data       -> counts as successful check
+                // - Successful FMP response with empty []   -> counts as successful check
+                // - HTTP/API/timeout/processing failure     -> does NOT count as successful check
+                //
+                // We only update last_fundamentals_checked_at after all statement
+                // types that needed checking for a symbol completed successfully.
                 foreach (var sym in symbols)
                 {
+                    bool symbolHadFailure = false;
+                    bool attemptedAtLeastOneStatement = false;
+
                     foreach (var statement in statements)
                     {
+                        // This statement type already has sufficiently fresh data.
                         if (!missingByStatement[statement.StatementType].Contains(sym))
                             continue;
+
+                        attemptedAtLeastOneStatement = true;
 
                         try
                         {
@@ -174,16 +197,80 @@ namespace MarketAnalysisEngine.Functions
                                 supabaseUrl: supabaseUrl,
                                 supabaseKey: supabaseKey,
                                 log: log);
+
+                            // If FetchAndStoreStatement returns normally, we consider
+                            // the FMP check successful.
+                            //
+                            // That includes:
+                            //   1) rows returned and stored
+                            //   2) valid HTTP response containing []
                         }
                         catch (Exception ex)
                         {
+                            symbolHadFailure = true;
+
                             // One endpoint/symbol failure should not kill the entire run.
                             log.LogError(
                                 ex,
-                                "Failed processing {StatementType} for {Symbol}. Continuing.",
+                                "Failed processing {StatementType} for {Symbol}. " +
+                                "The symbol will NOT be marked as successfully checked.",
                                 statement.StatementType,
                                 sym);
                         }
+                    }
+
+                    // ------------------------------------------------------------
+                    // Mark the symbol checked ONLY if none of its required
+                    // statement requests failed.
+                    // ------------------------------------------------------------
+                    if (!symbolHadFailure)
+                    {
+                        try
+                        {
+                            await MarkFundamentalsChecked(
+                                supabaseUrl,
+                                supabaseKey,
+                                sym,
+                                DateTime.UtcNow);
+
+                            if (attemptedAtLeastOneStatement)
+                            {
+                                log.LogInformation(
+                                    "Successfully completed fundamentals check for {Symbol}. " +
+                                    "Updated last_fundamentals_checked_at.",
+                                    sym);
+                            }
+                            else
+                            {
+                                // This can happen if our existing fundamentals data
+                                // already satisfies all statement freshness checks.
+                                // Updating the timestamp prevents this symbol from
+                                // getting selected over and over unnecessarily.
+                                log.LogInformation(
+                                    "No fundamentals statements needed refreshing for {Symbol}. " +
+                                    "Updated last_fundamentals_checked_at.",
+                                    sym);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            // The FMP work succeeded, but updating the tracking
+                            // timestamp failed. Don't kill the whole Function run.
+                            //
+                            // The symbol may simply get picked again next time.
+                            log.LogError(
+                                ex,
+                                "Fundamentals were processed for {Symbol}, but failed to update " +
+                                "last_fundamentals_checked_at.",
+                                sym);
+                        }
+                    }
+                    else
+                    {
+                        log.LogWarning(
+                            "Not updating last_fundamentals_checked_at for {Symbol} " +
+                            "because at least one required fundamentals request failed.",
+                            sym);
                     }
                 }
             }
@@ -192,6 +279,54 @@ namespace MarketAnalysisEngine.Functions
                 log.LogError(ex, "Unhandled exception in IngestFundamentalsFromFMP.");
             }
         }
+
+
+        private static async Task MarkFundamentalsChecked(
+                                    string supabaseUrl,
+                                    string supabaseKey,
+                                    string symbol,
+                                    DateTime checkedAt)
+        {
+            var url =
+                $"{supabaseUrl}/rest/v1/fmp_free_tier_symbols" +
+                $"?symbol=eq.{Uri.EscapeDataString(symbol)}";
+
+            var payload = new Dictionary<string, object?>
+            {
+                ["last_fundamentals_checked_at"] = checkedAt
+            };
+
+            var json = JsonSerializer.Serialize(payload);
+
+            var req = new HttpRequestMessage(
+                HttpMethod.Patch,
+                url);
+
+            req.Headers.Add("apikey", supabaseKey);
+            req.Headers.Add(
+                "Authorization",
+                $"Bearer {supabaseKey}");
+
+            req.Headers.Add(
+                "Prefer",
+                "return=minimal");
+
+            req.Content = new StringContent(
+                json,
+                Encoding.UTF8,
+                "application/json");
+
+            var resp = await HttpClient.SendAsync(req);
+            var body = await resp.Content.ReadAsStringAsync();
+
+            if (!resp.IsSuccessStatusCode)
+            {
+                throw new Exception(
+                    $"Failed updating fundamentals check for {symbol}: " +
+                    $"{resp.StatusCode} {body}");
+            }
+        }
+
 
         private static async Task FetchAndStoreStatement(
             string symbol,
@@ -209,25 +344,37 @@ namespace MarketAnalysisEngine.Functions
                 $"&period={period}" +
                 $"&apikey={Uri.EscapeDataString(fmpApiKey)}";
 
+            // ------------------------------------------------------------
+            // 1) Call FMP
+            // ------------------------------------------------------------
             var fmpResp = await HttpClient.GetAsync(fmpUrl);
 
+            var fmpJson = await fmpResp.Content.ReadAsStringAsync();
+
+            // IMPORTANT:
+            // HTTP/API failure must THROW so the outer loop knows
+            // NOT to mark this symbol as successfully checked.
             if (!fmpResp.IsSuccessStatusCode)
             {
-                var body = await fmpResp.Content.ReadAsStringAsync();
-
                 log.LogWarning(
                     "FMP {Endpoint} failed for {Symbol}: {Status} {Body}",
                     statement.Endpoint,
                     symbol,
                     fmpResp.StatusCode,
-                    body);
+                    fmpJson);
 
-                return;
+                throw new HttpRequestException(
+                    $"FMP {statement.Endpoint} failed for {symbol}: " +
+                    $"{(int)fmpResp.StatusCode} {fmpResp.StatusCode}");
             }
 
-            var fmpJson = await fmpResp.Content.ReadAsStringAsync();
+            // ------------------------------------------------------------
+            // 2) Parse response
+            // ------------------------------------------------------------
             using var fmpDoc = JsonDocument.Parse(fmpJson);
 
+            // FMP should always return an array for these endpoints.
+            // Anything else is considered a failed check.
             if (fmpDoc.RootElement.ValueKind != JsonValueKind.Array)
             {
                 log.LogWarning(
@@ -236,23 +383,62 @@ namespace MarketAnalysisEngine.Functions
                     symbol,
                     fmpJson);
 
+                throw new InvalidOperationException(
+                    $"Unexpected FMP response shape for " +
+                    $"{statement.Endpoint} / {symbol}.");
+            }
+
+            // ------------------------------------------------------------
+            // 3) Empty [] is VALID.
+            //
+            // It means FMP successfully answered the request but there
+            // simply isn't any data for this symbol / statement.
+            //
+            // Returning normally here tells the outer loop:
+            // "Yes, this endpoint was successfully checked."
+            // ------------------------------------------------------------
+            if (fmpDoc.RootElement.GetArrayLength() == 0)
+            {
+                log.LogInformation(
+                    "FMP returned no {StatementType} rows for {Symbol}. " +
+                    "Request was successful.",
+                    statement.StatementType,
+                    symbol);
+
                 return;
             }
 
             var rows = new List<Dictionary<string, object?>>();
 
+            // ------------------------------------------------------------
+            // 4) Convert FMP rows into fundamentals_raw rows
+            // ------------------------------------------------------------
             foreach (var item in fmpDoc.RootElement.EnumerateArray())
             {
                 if (!item.TryGetProperty("date", out var dateEl) ||
                     dateEl.ValueKind != JsonValueKind.String)
                 {
+                    log.LogWarning(
+                        "Skipping {StatementType} row for {Symbol} because " +
+                        "it does not contain a valid date.",
+                        statement.StatementType,
+                        symbol);
+
                     continue;
                 }
 
                 var asOfDate = dateEl.GetString();
 
                 if (string.IsNullOrWhiteSpace(asOfDate))
+                {
+                    log.LogWarning(
+                        "Skipping {StatementType} row for {Symbol} because " +
+                        "date was empty.",
+                        statement.StatementType,
+                        symbol);
+
                     continue;
+                }
 
                 rows.Add(new Dictionary<string, object?>
                 {
@@ -265,18 +451,33 @@ namespace MarketAnalysisEngine.Functions
                 });
             }
 
+            // ------------------------------------------------------------
+            // 5) FMP returned objects, but NONE were usable.
+            //
+            // This is different from [].
+            //
+            // We should NOT mark the symbol successfully checked because
+            // something about the response shape/data was unexpected.
+            // ------------------------------------------------------------
             if (rows.Count == 0)
             {
-                log.LogInformation(
-                    "No {StatementType} rows returned for {Symbol}.",
+                log.LogWarning(
+                    "FMP returned {StatementType} data for {Symbol}, " +
+                    "but none of the rows contained a usable date.",
                     statement.StatementType,
                     symbol);
 
-                return;
+                throw new InvalidOperationException(
+                    $"FMP returned unusable {statement.StatementType} " +
+                    $"data for {symbol}.");
             }
 
+            // ------------------------------------------------------------
+            // 6) Store in Supabase
+            //
             // Existing unique constraint:
             // symbol, provider, statement_type, period, as_of
+            // ------------------------------------------------------------
             var insertUrl =
                 $"{supabaseUrl}/rest/v1/fundamentals_raw" +
                 $"?on_conflict=symbol,provider,statement_type,period,as_of";
@@ -288,12 +489,12 @@ namespace MarketAnalysisEngine.Functions
                 preferResolutionIgnoreDuplicates: true);
 
             log.LogInformation(
-                "Inserted {Count} {StatementType} rows for {Symbol}.",
+                "Inserted/processed {Count} {StatementType} rows for {Symbol}.",
                 rows.Count,
                 statement.StatementType,
                 symbol);
         }
-
+       
         private static async Task<string> SupabaseGet(
             string url,
             string supabaseKey)
