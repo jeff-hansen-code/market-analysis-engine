@@ -83,14 +83,33 @@ A single HTTP endpoint returns:
 
 | Function | Trigger | Schedule (cron) | Purpose |
 |---|---|---:|---|
-| `IngestTopTraded` | Timer | `0 45 14-20 * * 1-5` | Ingest Top Traded during market hours (UTC) |
+| `IngestTopTraded` | Timer | `0 45 14-20/2 * * 1-5` | Ingest Top Traded during market hours (UTC) |
 | `IngestTopTradedClose` | Timer | `0 0 21 * * 1-5` | Ingest Top Traded at/after close (UTC) |
-| `IngestFundamentalsFromTopTraded` | Timer | `0 15 14-22 * * 1-5` | Fetch quarterly income statements for recent Top Traded symbols |
-| `IngestFundamentalsFromFMP` | Timer | `0 15 14-22/2 * * 1-5` | Fetch quarterly income statements for allowlisted symbols |
-| `fmp_get_price` | Timer | `0 */2 * * * *` | Batch quotes → `stocks_raw`, market-hours gated |
+| `IngestFundamentalsFromTopTraded` | Disabled | — | Function attribute is commented out |
+| `IngestFundamentalsFromFMP` | Timer | `0 15 22 * * 1-5` | Fetch three quarterly statements for up to 25 allowlisted symbols daily |
+| `fmp_get_price` | Timer | `0 */30 * * * *` | Batch quotes → `stocks_raw`, market-hours gated |
+| `IngestCongressionalTrades` | Timer | `0 5 13-21 * * 1-5` | Hourly Senate and House disclosures |
+| `IngestInsiderTrading` | Timer | `0 10 13-21 * * 1-5` | Hourly insider disclosures |
+| `IngestAnalystEstimatesFromFMP` | Timer | `0 30 22 * * 1-5` | Analyst estimates for up to 20 symbols daily |
 | `Analysis` | HTTP GET | — | `/api/analysis/{symbol}` returns quotes + predictions + features |
 
 > Notes on schedules: Azure Functions cron is evaluated in UTC. The `fmp_get_price` job additionally checks US market hours in **America/New_York** unless bypassed.
+
+### FMP daily call budget
+
+The free-tier allowance is 250 calls/day. With `FMP_MAX_SYMBOLS_PER_RUN=900`, `FMP_BATCH_SIZE=200`, and `BYPASS_MARKET_HOURS=false`, the scheduled weekday budget is:
+
+| Feed | Maximum scheduled calls/day |
+|---|---:|
+| Quotes (14 half-hour slots, including 16:00 ET, × 5 batches) | 70 |
+| Fundamentals (25 symbols × 3 statements) | 75 |
+| Congressional trades (9 runs × 2 chambers) | 18 |
+| Insider trading (9 runs) | 9 |
+| Analyst estimates (20 symbols) | 20 |
+| Top traded (4 intraday runs + close) | 5 |
+| **Total** | **197** |
+
+This leaves 53 calls for other usage. Actual calls can be lower when no symbols need refreshing. This is a schedule budget, not a shared quota enforcement mechanism: manual reruns, other consumers of the API key, additional deployments, or changes to batching/market-hours settings can exceed it. Fundamentals now process up to 25 eligible symbols per weekday; a backlog takes more days to clear. Deploy the Functions app for schedule changes to take effect.
 
 ---
 

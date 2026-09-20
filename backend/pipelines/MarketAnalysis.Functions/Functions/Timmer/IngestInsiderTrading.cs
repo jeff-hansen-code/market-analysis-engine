@@ -17,8 +17,8 @@ namespace MarketAnalysisEngine.Functions
 
         [Function("IngestInsiderTrading")]
         public static async Task Run(
-            // twice per hour
-            [TimerTrigger("0 10,40 13-21 * * 1-5", RunOnStartup = false)]
+            // Hourly on weekdays, 13:10-21:10 UTC: 9 calls/day.
+            [TimerTrigger("0 10 13-21 * * 1-5", RunOnStartup = false)]
             TimerInfo timer,
             FunctionContext context)
         {

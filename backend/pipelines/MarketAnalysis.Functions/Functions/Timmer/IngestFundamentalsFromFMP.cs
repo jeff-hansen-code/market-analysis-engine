@@ -30,8 +30,8 @@ namespace MarketAnalysisEngine.Functions
 
         [Function("IngestFundamentalsFromFMP")]
         public static async Task Run(
-            // Every 2 hours during weekdays, UTC hours 14-22 at :15
-            [TimerTrigger("0 15 14-22/2 * * 1-5", RunOnStartup = false)] TimerInfo timer,
+            // Once each weekday after market close: at most 25 symbols x 3 statements = 75 calls/day.
+            [TimerTrigger("0 15 22 * * 1-5", RunOnStartup = false)] TimerInfo timer,
             FunctionContext context)
         {
             var log = context.GetLogger("IngestFundamentalsFromFMP");
