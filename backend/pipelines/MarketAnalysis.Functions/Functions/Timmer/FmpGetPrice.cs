@@ -43,10 +43,10 @@ public class FmpGetPrice
             : 200;
     }
 
-    // Every 2 minutes; market-hours gating keeps us well under 250 calls/day
+    // Every 30 minutes during market hours: up to 70 calls/day at 900 symbols / 200 per batch.
     [Function("fmp_get_price")]
     public async Task Run(
-        [TimerTrigger("0 */5 * * * *", RunOnStartup = false)] TimerInfo myTimer)
+        [TimerTrigger("0 */30 * * * *", RunOnStartup = false)] TimerInfo myTimer)
     {
         var nowUtc = DateTime.UtcNow;
 
