@@ -24,7 +24,7 @@ A scheduled function calls FMP’s “most actives / top traded” feed and writ
 Two scheduled paths exist:
 
 - **From an allowlist table** (for staying inside “free tier”/rate limits)
-  - **Source table:** `fmp_free_fundamentals_allowed`
+  - **Source table:** `fmp_free_tier_symbols`
   - **Destination table:** `fundamentals_raw`
 
 - **From recent Top Traded symbols**
