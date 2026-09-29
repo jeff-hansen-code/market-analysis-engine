@@ -58,7 +58,7 @@ resource "azurerm_storage_container" "curated" {
 }
 
 resource "azurerm_storage_container" "ml" {
-  name                  = "ml"
+  name                  = "mlmaesa"
   storage_account_id    = azurerm_storage_account.mae_datalake.id
   container_access_type = "private"
 }
