@@ -17,8 +17,8 @@ resource "azurerm_storage_container" "deploy" {
 
 resource "azurerm_storage_account" "mae_datalake" {
   name                = "maedatalake001" # Must be globally unique, lowercase only
-  resource_group_name = azurerm_resource_group.mae.name
-  location            = azurerm_resource_group.mae.location
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
 
   account_tier             = "Standard"
   account_replication_type = "LRS"
